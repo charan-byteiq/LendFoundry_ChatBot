@@ -1,0 +1,407 @@
+[
+  {
+    "tags": [
+      "Architecture",
+      "SystemScalability",
+      "Configuration",
+      "ConceptExplanation"
+    ],
+    "content": "2. Micro-services Architecture\nLMS is built on a micro-services architecture where there are different dedicated services\ndesigned for each task. This makes the system highly configurable and troubleshoot-friendly. At\npresent, the initial configuration set-up is done by the Lendfoundry team."
+  },
+  {
+    "tags": [
+      "AssetClassSupport",
+      "MultiProduct",
+      "ConceptExplanation"
+    ],
+    "content": "3. Supported Asset Classes\nLendFoundry LMS is a multi-product servicing platform. LendFoundry supports\nunsecured/secured term loans with different schedule types, Cash Advances, LOCs, etc. All\nproducts that a lender offers can be made available on the same LMS portal.\nA borrower may have multiple loans and such a consolidated borrower view is also available to\nmanage borrower-level risk exposure. The products presently available on our system are"
+  },
+  {
+    "tags": [
+      "AssetClassSupport",
+      "LOC",
+      "DrawManagement",
+      "InterestAccrual",
+      "ConceptExplanation"
+    ],
+    "content": "3. Line of Credit (LOC)\nA LOC is an interest-bearing loan that allows the borrower to draw funds multiple times during\nthe life of the loan. Based on a line limit an underwriter may choose to approve funding of\nadditional draws. The schedule type of these loans is typically interest only and one balloon\nrepayment on the maturity date, but a few can also have equated\nrepayments(Principal+Interest). Interest is accrued daily on the unpaid principal. More details\nabout this are explained here."
+  },
+  {
+    "tags": [
+      "AssetClassSupport",
+      "SCF",
+      "InvoiceFinancing",
+      "ConceptExplanation"
+    ],
+    "content": "4. Supply Chain Financing (SCF)\nAn SCF loan is a non-revolving term loan that can have multiple invoices associated with a\nsingle borrower, repayable at different rates, and tenures. Each invoice is onboarded as a\nseparate loan. More details about this are explained here."
+  },
+  {
+    "tags": [
+      "AssetClassSupport",
+      "InterestAccrual",
+      "LoanTypeImmutability",
+      "ConceptExplanation"
+    ],
+    "content": "In an accrual type of loan (such as Term Loans, LoC, SCF) each additional day that the principal\nremains unpaid, interest will continue to accrue. In the case of MCA loans, there is no additional\ninterest. The repayable amount remains the same, irrespective of any changes in time taken to\nrepay – other than any fees which may be levied for delays. Once a loan has been onboarded\nwith a certain type, it cannot be changed."
+  },
+  {
+    "tags": [
+      "Configuration",
+      "TenantSetup",
+      "SystemBehavior",
+      "ConceptExplanation"
+    ],
+    "content": "5. Tenant Set-up\nPrior to onboarding of loans, LF will help onboard a Lender as a Tenant, by setting up all\nnecessary configurations on a one-time basis. However, if there are changes at a later date, the\ntenant will have to come to Lendfoundry for the changes so that Lendfoundry can do a round of\ntesting with the modified configurations. For the Tenant set-up, the following needs to be\ncompleted by the LF team:"
+  },
+  {
+    "tags": [
+      "Configuration",
+      "TenantSetup",
+      "EnvironmentSetup",
+      "CloudHosting",
+      "ConceptExplanation"
+    ],
+    "content": "6. Environment Set-up\nBased on an LF Tenant agreement and subsequent discovery, an environment is set up. This is\ntypically hosted on the cloud or as per preference."
+  },
+  {
+    "tags": [
+      "Configuration",
+      "TenantSetup",
+      "FeeSetup",
+      "FeeApplication",
+      "ConceptExplanation"
+    ],
+    "content": "3. Fee Set-Up\nSimilar to product set-up, we have fee parameters for each of the products. These fees can be\nconfigured as per the tenant's requirements and can be applied upon the occurrence of any\nevent, such as delayed payment, on a periodic basis(such as Monitoring Fee), or can be applied\nmanually against any loan via the LMS portal."
+  },
+  {
+    "tags": [
+      "SecurityFeature",
+      "TwoFactorAuthentication",
+      "UserAuthentication",
+      "ConceptExplanation"
+    ],
+    "content": "7. Two-Factor Authentication(2FA)\nTwo-factor authentication (2FA) is an additional layer of security for your accounts with the\nLendfoundry Loan Servicing portal. Requiring two forms of identification significantly reduces\nthe chances of unauthorized access, even if your password is compromised, and protects\nagainst cyber threats and security attacks. This section will guide you through the setup process\nfor 2FA using your email address or phone number."
+  },
+  {
+    "tags": [
+      "SecurityFeature",
+      "TwoFactorAuthentication",
+      "UserAuthentication",
+      "Configuration",
+      "HowTo"
+    ],
+    "content": "Setting-up 2FA\nLendfoundry provides 2FA Verification via the registered users' Email addresses or Phone\nnumbers. The client can choose either an Email address or Phone number for 2FA and upon\nconfirmation, Lendfoundry will enable 2FA for the respective portal.\nThe following things are required and are to be confirmed by Implementation Leads before\nenabling 2FA-\n1. Every registered user has been set up with an individual mail address. If any changes are\nrequired, the client shall complete them beforehand.\n2. To enable 2FA using a Phone number, the client will require Twilio Credentials.\n3. To enable 2FA using a phone number, all the existing user profiles shall be updated through\nthe script for the phone number details."
+  },
+  {
+    "tags": [
+      "SecurityFeature",
+      "SingleSignOn",
+      "UserAuthentication",
+      "ConceptExplanation",
+      "Definition"
+    ],
+    "content": "8. Single Sign-On(SSO)\nSingle Sign-On (SSO) is an identification method that enables users to securely log in to\nmultiple applications and services using one set of credentials. (With SSO, a user only has to\nenter their login credentials (username, password, etc.) one time on a single page to access all\nof their SaaS applications)\nLendfoundry provides Single Sign-On (SSO) support for various applications used by users\nsuch as Loan Origination, Loan Servicing, and Syndication. Lendfoundry provides two default\noptions for setup -\n1. SSO using Lendfoundry Setup\n2. SSO using Active Directory Service"
+  },
+  {
+    "tags": [
+      "SecurityFeature",
+      "SingleSignOn",
+      "Navigation",
+      "SystemBehavior",
+      "ConceptExplanation"
+    ],
+    "content": "Navigation to various systems\nUsers who have roles assigned in all the products can navigate to various systems through\nunique identifiers such as Loan Application Number, Loan Number, Investor Account Number,\netc. This can be modified as per the requirements.\nThe navigation feature is Access controlled and the system will show necessary validations for\nthe allowed actions. For example, if a user does not have access to Syndication portal and\nhe/she tries to open a Syndication loan the system will trigger a message “Sorry, you are not a\nuser of Syndication portal hence this action is not allowed”."
+  },
+  {
+    "tags": [
+      "Navigation",
+      "LandingPage",
+      "ActionCenter",
+      "SearchFunctionality",
+      "UIElementDescription"
+    ],
+    "content": "9. LMS Navigation\n1. Landing Page\nTypically, for a Business User, upon login, the default landing page is the Action Center with\nactionable shortcuts to filters that are clickable and a search panel to the right. To the left is the\nfilter pane which can be configured per Tenant needs, and remains constant for all products.\nBelow is a screenshot description of the landing page for reference:\nOn the header at the top, there are 3 sub-sections - Hamburger menu, Search Loan, Profile\nSection-\n* The hamburger menu expands to the left pane menu which shows a list of menu options for\nUser Management, Loan/Application Search, and easy filtering of loans.\n* The search loan provides an option to do a quick search by entering the loan\nnumber/application number.\n* The profile icon with initials, allows the user to access their profile settings.\nBelow the header, there is a tile-based view that provides easy and quick access to the different\ncategories of loans. These tiles can be configured as per your need.\nBelow this view, there is a loan search screen which contains various search fields configured\nby the tenant. After providing the input(s) in search fields, the user can click on the “Search”\nbutton below to get the list of loans meeting the search criteria."
+  },
+  {
+    "tags": [
+      "Navigation",
+      "SearchFunctionality",
+      "FilterPane",
+      "ConceptExplanation"
+    ],
+    "content": "Once a loan has been onboarded, there are many ways to get a specific loan. A user can\nsearch for a loan, or search for a borrower using the left shortcut, known as “Filter” in LF. The\n“Search” filter allows the user to search for an application/loan/borrower by entering the search\ncriteria. These search fields are configured as per the Tenant’s needs."
+  },
+  {
+    "tags": [
+      "Navigation",
+      "FilterPane",
+      "UIElementDescription"
+    ],
+    "content": "2. Filter Pane\nLoans can be accessed through a list view which is known as a filter. A loan can appear in\nmultiple filters. Upon login, the left pane has a list of clickable filters, below is a list of all\navailable groups of filters, which are typically used. Some or all of the filters may be available for\na tenant:\nA table is shown with columns for Filter Group, Description, and Sub-filters.\n- User Management: Used to set-up new users in LF system. Sub-filters: All Users, Create New\nUser.\n- Calendar: Used to view/make changes in the calendar configuration. Sub-filters: None.\n- Search: Used to search for applications/loans/borrowers. Sub-filters: Action Center, Loan,\nApplication, Borrower.\n- Apps: Used to view approved for funding or already funded applications. Sub-filters:\nApprove/Funded.\n- Current: Used to view loans based on Loan Performance. Sub-filters: Good Standing, DPD\nUnder 30.\n- Delinquent: Sub-filters: 30+ DPD, 60+ DPD, 90+ DPD.\n- Modifications: Used to view loans based on actions on a loan. Typically, subject to review and\napproval OR maker checker mechanism. Sub-filters: Pending Modification Review, Modified\nLoans, Restructured Loans, Pending Closure, Pending Charge-Off Review, Paid-Off,\nCharged-Off, Bankruptcy, Deceased, Forbearance, Unwind.\n- Closed Loan: Sub-filters: Closed.\n- Payments: Based on payments on a loan. Sub-filters: Payments In Process, Failed Payments,\nPayments In NOA, Auto-pay Paused, Accrual Paused, Excess Amount.\n- All Flags: Based on flags configured. Sub-filters: Flags.\n- Batch Job: Used to view results of System tasks configured to run. Sub-filters: Job Status.\n- Reports: Used to access Operational reports. Sub-filters: Report."
+  },
+  {
+    "tags": [
+      "LoanView",
+      "LoanTabs",
+      "UIElementDescription",
+      "DataManagement"
+    ],
+    "content": "Working with a Loan View\n4. Main Tabs\n1. Borrower Details: Relevant for both Business and Personal loans. Has two sections\n1. Business/Personal Details : Information of primary borrower in case of business lending\nand details of the individual in the personal lending case, information is editable from within the\nframe.\n2. Additional Owners: If there is more than 1 borrower on a loan, then information about them\nis available in this tab. The information is editable from within the frame."
+  },
+  {
+    "tags": [
+      "LoanView",
+      "ActionMenu",
+      "UIElementDescription",
+      "SystemBehavior",
+      "ValidationRule"
+    ],
+    "content": "5. Action Menu on the Loan\nEach loan has a floating Action Bar on the right. These actions let the user perform specific\noperations on the loan. To control any inconsistencies and discrepancies in the system\nbehavior, we show appropriate message/warnings on the UI. At a few places, we have also put\nsome UI validations which are described as UI Validations section against each of the action\nmenu.\nDisclaimer: Please note that you may not see all these actions in the LMS portal since we would\nhave disabled a few as per the discussions during discovery."
+  },
+  {
+    "tags": [
+      "LoanView",
+      "ActionMenu",
+      "UIElementDescription",
+      "Communication",
+      "AuditTrail",
+      "Tagging"
+    ],
+    "content": "Action Menus\nOn the loan view, on the right side, we see , which on click, expands into a list of actions that\nthe user can perform on loan. All actions are not viewable for all users. These are configured at\na role level during the initial set-up for each tenant. Details of the Action Menus are given below.\nSend Email\nOn the Action Bar, we see “Mail” icon , on click, allows the user to send an email to the\nborrower\nAdd Call Notes\nOn the action bar, we see a “Phone icon”, on click it allows the user to add the details of any\ncalls to the client and also setup a follow up\nAdd Notes\nOn the action bar, we see a “Note icon”, on click it allows users to add categorized notes on the\nloan for future reference\nInbox\nThe topmost icon in the action bar is for “Inbox”. This highlights the important events happening\non this loan and shows as flags. These flags can be acknowledged/dismissed. These flags\nwhich appear here are configurable by the tenant. The user can add flags manually as well.\nActivities\nThe “list/menu icon” in the action bar is for “Activities”. This captures the complete audit trail of\nthe loan since inception till the end of the loan lifecycle. This shows the summary of the event\nwith a timestamp and also the user who performed the action. If an event is triggered by the\nsystem, then it will show “System” in the UserName.\nNotes -This shows all the “Notes” that were added to this loan using the Add Note action\nexplained above. The user can search notes using “Category”."
+  },
+  {
+    "tags": [
+      "LoanView",
+      "ActionMenu",
+      "UIElementDescription",
+      "Tagging",
+      "HowTo"
+    ],
+    "content": "Inbox:\nYou can see a dropdown menu for “Action” to filter based on the required action, upon clicking it\nthe following options are available: All, None, Acknowledge, Dismiss, Active.\nNext to the dropdown there is a “plus” icon that is used to add a flag. Clicking on it opens a\npop-up menu with input for colour, description and pre-configured list of flags that can be\nselected by tick. At the bottom, there is a “Submit” button to add the flag. Once the user hit\nsubmit the flag appears in the inbox.\nThen there’s a search bar where users can search for flags by typing in the pre-configured tags\nthat are applied for each flag. These tags will be automatically assigned to each flag by the\nsystem. At last there is a “refresh” icon, used to clear the search results.\nNext to each flag there is a checkbox, upon checking a flag users can either “Acknowledge”,\n“Active” or “Dismiss” a flag that assigns the corresponding sign to that flag."
+  },
+  {
+    "tags": [
+      "LoanView",
+      "ActionMenu",
+      "UIElementDescription",
+      "AuditTrail",
+      "SearchFunctionality"
+    ],
+    "content": "Activity List\nYou see a search bar where users can type in any keyword to search any activities that contain\nit.\nNext to the search bar there is a dropdown icon, on clicking it there are more search filters like\nproperty name and date for a refined search.\nThe “refresh” button at the top is used to reset the search."
+  },
+  {
+    "tags": [
+      "LoanView",
+      "ActionMenu",
+      "UIElementDescription",
+      "SearchFunctionality"
+    ],
+    "content": "Notes\nThere is a search bar where users search for note typing any keyword next to search input.\nThere's a dropdown icon on clicking it there are more search filters like property name and date\nfor a refined search.\nBelow the search bar, there’s a dropdown menu for “Search category” to filter notes based on\nvarious categories."
+  },
+  {
+    "tags": [
+      "LoanManagementAction",
+      "MakePayment",
+      "ValidationRule",
+      "SystemBehavior"
+    ],
+    "content": "UI Validations\nA table shows UI validations for the Make Payment action.\n- Payment Date: Should be >= Funded Date. For DebitCards, it has a more complex rule\ninvolving Funded Date, Today, and processing days. Configurable per product.\n- Effective Date: Should be >= Funded Date and <= Payment Date. Not applicable for\nDebitCards. Configurable per product. Can be hidden based on configuration.\n- Pay-off Discount: Visible when Payment Purpose is Payoff and editable when Total\noutstanding is greater than Payment Amount. Configurable per tenant.\n- Principal, Interest, etc.: Editable when Payment Purpose is Custom.\n- Recasting Options: Visible for Installment type loans only. Can be hidden based on\nconfiguration for certain payment types."
+  },
+  {
+    "tags": [
+      "LoanManagementAction",
+      "PauseResumePayment",
+      "UIElementDescription"
+    ],
+    "content": "From the floating Action Bar, when the user selects the Pause/Resume Payments, a window\nwill appear with the following options for the backoffice user to enter the data. The following\nfields are displayed\nPause Date: Calendar field to enter the date from which automatic payments should stop.\nResume Date: Calendar field to enter the date on which automatic payments should start again.\nReason for Auto-Pay Pause: Dropdown field with a pre-configured set of reasons for Auto Pay\nPause some options are -Harships, Insufficient funds, Modification, Invalid Account Number etc.\nSubmit Button – Finalize and save the entered information."
+  },
+  {
+    "tags": [
+      "LoanManagementAction",
+      "PauseResumeAccrual",
+      "UIElementDescription"
+    ],
+    "content": "From the floating Action Bar, when the user selects the Pause/Resume Accrual, a window will\nappear with the following options for the backoffice user to enter the data. The following fields\nare displayed\nPause Date: Calendar field to enter the date from which accruals should stop.\nReason for Accrual Pause: Dropdown field with a pre-configured set of reasons for Accrual\npause like deferment due to various reasons, opted by borrower etc.\nSubmit Button – Finalize and save the entered information."
+  },
+  {
+    "tags": [
+      "LoanManagementAction",
+      "ApplyFeeCharge",
+      "ValidationRule"
+    ],
+    "content": "UI Validations\nA table shows UI validations for the Apply Fee/Charge action.\n- Start Date/End Date: Min Check (if Fee Type = Scheduled) is As of Date + 2 + Payment\nProcessing Day. Configurable per product."
+  },
+  {
+    "tags": [
+      "LoanManagementAction",
+      "ApplyFeeCharge",
+      "UIElementDescription"
+    ],
+    "content": "From the floating Action Bar, when the user selects the Apply Fee/Charge, a window will\nappear with the following options for the backoffice user to enter the data. The following fields\nare displayed\nFee Type : Dropdown field that allows that user to select the type of fee being applied, options\nare scheduled, Per Occurrence or Pre Applied\nFee Name :Dropdown field that allows that user to select fee name like Late Fee, Closing Fee,\nMaintenance Fee etc. The available list is dependent on the selected Fee Type.\nFee Amount : Currency field to Input the dollar amount to be charged to the borrower.\nApply Date: Calendar field to select the date when the fee should be applied.\nDescription: Optional free-text field to capture any comments by the user\nSubmit Button – Finalize and save the entered information."
+  },
+  {
+    "tags": [
+      "LoanManagementAction",
+      "EstimatePayoff",
+      "PayoffCalculation",
+      "UIElementDescription"
+    ],
+    "content": "From the floating Action Bar, when the user selects the Estimate Pay Off Action Menu, a\nwindow will appear with the following options for the backoffice user to enter the data. The\nfollowing fields are displayed\nPay Off Date: Calendar field to select the date for which the pay off amount is to be calculated.\nCheckbox : Assume all scheduled payments will be paid\nCalculate Button – To Calculate the Pay Off Amount based on the date entered"
+  },
+  {
+    "tags": [
+      "LoanManagementAction",
+      "RestructurePayments",
+      "ValidationRule",
+      "SystemBehavior"
+    ],
+    "content": "UI Validations\nA table shows UI validations for the Re-structure Payments action.\n- Second Payment Date: Visible and mandatory when Payment Frequency is Semi-Monthly.\nMin/Max checks apply. Configurable per product.\n- New Payment Amount: Visible when \"Restructuring Mode\" is \"By Payment Amount\".\nConfigurable per product.\n- No of Payments: Visible when \"Restructuring Mode\" is \"By Tenure\". Configurable per product.\n- Effective Date: Min/Max checks apply, differing for P+I loans and based on frequency.\nConfigurable per product.\n- First Payment Date: Min/Max checks apply, differing for P+I loans and based on frequency and\nprocessing days. Configurable per product."
+  },
+  {
+    "tags": [
+      "LoanManagementAction",
+      "ModifyLoan",
+      "ValidationRule",
+      "SystemBehavior"
+    ],
+    "content": "UI Validations\nA table shows UI validations for the Modify Loan action.\n- The action is not visible if a loan modification is already in \"Created\" status. Configurable per\nproduct.\n- Second Payment Date: Visible and mandatory when Payment Frequency is Semi-Monthly.\nMin/Max checks apply. Configurable per product.\n- New Payment Amount: Editable when \"Modification Mode\" is \"By Payment Amount\".\nConfigurable per product.\n- No of Payments: Editable when \"Modification Mode\" is \"By Tenure\". Configurable per product.\n- Effective Date: Min/Max checks apply, differing for EMI loans and based on frequency.\nConfigurable per product.\n- First Payment Date: Min/Max checks apply, differing for EMI loans and based on frequency,\nprocessing days, and other configurations. Configurable per product."
+  },
+  {
+    "tags": [
+      "LoanManagementAction",
+      "ChargeOffLoan",
+      "LoanClosure",
+      "HowTo",
+      "UIElementDescription"
+    ],
+    "content": "11. Charge Off Loan\nCharge-off is subject to reviewer / approver mechanism by default unless configured differently\nfor a tenant. Once approved by the manager using the sub-process mechanism, a new action in\nthe form of an accordion called “Charge Off Loan” is available in the action menu.\nThe Charge Off Loan option gives users the ability to charge off a loan completely.\nSteps:\n1. The “Total Outstanding Balance” column on the “Charge Off Loan” pop-up shows the\noutstanding balance for each of the buckets. The “Charge-off Amount” column will be the same\nas the first column, “Total Outstanding Balance” since the system will allow to completely charge\noff the balances. Therefore, the amounts in the last column, i.e. “Total Outstanding Balance\n(After Charge-off)” will always be 0.\n2. Click on the “Charge-Off” button at the bottom right of the pop-up and the system will\ncompletely charge off the loan amount."
+  },
+  {
+    "tags": [
+      "LoanManagementAction",
+      "RecoverPostChargeOff",
+      "ValidationRule"
+    ],
+    "content": "UI Validations\nA table shows UI validations for the Recover Post Charge Off action.\n- Payment Date: Min Check is Current Date. Configurable per product.\n- Checkbox: is this the last payment for settlement?: Visible when Payment instrument is\nnon-ACH/EFT."
+  },
+  {
+    "tags": [
+      "LoanManagementAction",
+      "TemporaryPaymentPlan",
+      "HowTo",
+      "UIElementDescription"
+    ],
+    "content": "Once a TPP is accounted for on the Loan, the “Temporary Payment Plan” action has 2 options:\n“Modify Payment Plan” and “Terminate Payment Plan” with a plus (+) icon next to them to allow\nfor extension of the fields associated with the option.\nModify Payment Plan:\nOnce the TPP is active on a loan, users can make some modifications to the plan. Users can\nchange the “Payment Amount” and “Effective End Date” by modifying the values of the\ncorresponding fields from the existing TPP. The User can then click on the “Modify Payment\nPlan” button to submit and modify the TPP Plan. However, the user can terminate the plan\ncompletely & set up a new plan if other parameters are to be changed.\nTerminate Payment Plan:\nThe user can choose to “Terminate Payment Plan” by clicking on the plus icon next to the\ncorresponding option on the “Temporary Payment Plan” action, any time during the period it is\nactive. Once the plan is terminated payments will be processed as per the original amortization\nschedule."
+  },
+  {
+    "tags": [
+      "LoanManagementAction",
+      "TemporaryPaymentPlan",
+      "ValidationRule",
+      "SystemBehavior"
+    ],
+    "content": "UI Validations\nA table shows UI validations for the Temporary Payment Plan action.\n- First Payment Date: Only future dates allowed, depends on ACH processing days.\nConfigurable per tenant.\n- Effective Start Date: Auto-populates based on ACH processing days. Configurable per tenant.\n- Select Payment Frequency: Only frequencies configured for the product are allowed.\nConfigurable per tenant.\n- Modify Payment Plan: All fields can be modified before activation. After activation, only\nPayment Amount & Effective End Date can be modified. Configurable per product."
+  },
+  {
+    "tags": [
+      "Configuration",
+      "CalendarConfiguration",
+      "HolidayConfiguration",
+      "ValidationRule"
+    ],
+    "content": "Some of the validation while adding holidays are:\n* A holiday cannot be added retrospectively. Only a future date can be added as a holiday.\n* A holiday cannot be added on days falling on the weekend.\n* Any existing holiday cannot be added again.\nOnce the holiday is successfully added the system gives a success message: “Holiday Added\nSuccessfully”. These new holidays will be listed in particular Month and Year with an updated\ndate."
+  },
+  {
+    "tags": [
+      "Configuration",
+      "HolidayConfiguration",
+      "SystemBehavior",
+      "ConceptExplanation"
+    ],
+    "content": "Holiday Change in “Next” holiday config\nIf a new holiday is added manually and it coincides with a Payment Due Date (i.e. the Original\nSchedule Date), the Schedule Date is shifted (adjusted) to the next business day in the “Next”\nHoliday configuration.\nExample:-\n- Original Schedule Date: Monday, 30th September 2024\nNow, if a new holiday is added for Monday, 30th September 2024, the Schedule Date is shifted\nto the next business Day, i.e. Tuesday, 1st October 2024. Since there is no change in splits, the\nloan in this case doesn’t get amortized."
+  },
+  {
+    "tags": [
+      "Configuration",
+      "HolidayConfiguration",
+      "SystemBehavior",
+      "ConceptExplanation"
+    ],
+    "content": "Holiday Change in “Previous” holiday config\nIf a new holiday is added manually and it coincides with a Payment Due Date (i.e. the Original\nSchedule Date), the Schedule Date is shifted (adjusted) to the next business day in the “Next”\nHoliday configuration.\nExample:-\n- Original Schedule Date: Monday, 30th September 2024\nNow, if a new holiday is added for Monday, 30th September 2024, the Schedule Date is shifted\nto the next business Day, i.e. Tuesday, 1st October 2024. Since there is no change in splits, the\nloan in this case doesn’t get amortized."
+  },
+  {
+    "tags": [
+      "Configuration",
+      "BankDetails",
+      "TenantSetup",
+      "ConceptExplanation"
+    ],
+    "content": "At Lender level\nThe lender can also choose to have multiple accounts for disbursing the funds and for collecting\nrepayments. In such a case, different accounts can be set up in the LMS configuration during\nthe tenant set-up."
+  },
+  {
+    "tags": [
+      "AssetClassSupport",
+      "LOC",
+      "DrawManagement",
+      "FeeApplication",
+      "APIFunctionality",
+      "HowTo"
+    ],
+    "content": "Notes:\n1. Fees: If the lender wishes to apply a fee during the draw process, it can do it in 2 ways:\n1. Let us know the fees name and amount - we can have it pre-configured and the system\ncan apply the fees automatically once the draw is approved.\n2. If the fee amount can vary and/or does not apply to all draws, then it can use the existing\n“Apply Fee” action to apply the fee manually.\n3. We can also pass the fee in the Initiate Draw API. While funding the draw that amount will\nbe deducted from Approved Amount (Funded Amount = Approved Amount - Fees(in\nInitiateDraw))."
+  },
+  {
+    "tags": [
+      "AssetClassSupport",
+      "LOC",
+      "DrawManagement",
+      "ConceptExplanation"
+    ],
+    "content": "Draw Status\nA table describes the status of a Draw, its details, and available actions.\n- Verification: User has created a draw request. Actions: Delete, Approve Draw, Reject Draw.\n- Deleted: User has deleted the draw request. No actions.\n- Rejected: The draw request is rejected. No actions.\n- Approved: The draw request is approved. No actions.\n- Funded: Draw is funded. No actions."
+  },
+  {
+    "tags": [
+      "LoanManagementAction",
+      "EarnOuts",
+      "SystemBehavior",
+      "ReAmortization",
+      "Backdating"
+    ],
+    "content": "1. As soon as an earn-out is issued to the borrower, the principal balance on the loan increases\nfrom the Effective Date, and also re-amortize the loan. Re-amortization will not create a new\nschedule version.\n2. The system will recompute the installment amount.\n3. The maturity date will remain the same in this case.\n4. It will also add a transaction to the main loan a/c with the name \"Earn Out Issued\" with\nthe (negative)amount in the Principal column.\n5. Earn-outs can be issued for CRE loans that may have single or multi-tiers. It is\napplicable to both fixed-rate interest loans and variable(index-based).\n6. Earn-outs can be backdated as well as long as it is after the last payment effective date.\n7. DB: Data will be stored in ‘earn-out-details’ collection"
+  },
+  {
+    "tags": [
+      "ReportingFeature",
+      "OperationalReports",
+      "DataExport",
+      "ConceptExplanation"
+    ],
+    "content": "13. Operational Reports\nLMS has a series of reports to aid reconciliation and audit of various processes. These\noperational reports are available via the “Reports->Report” filter on the left pane in the LMS. The\nfollowing reports exist as of today. The user can pick any report from the dropdown and can see\nthe details on the screen. Additionally, these reports are downloadable in excel format with more\ninformation."
+  },
+  {
+    "tags": [
+      "ReportingFeature",
+      "OperationalReports",
+      "LoanEarningsReport",
+      "ConceptExplanation"
+    ],
+    "content": "1. Loan Earnings Report\nThis helps the lender know its earnings during a given time period. This report will run across all\nthe loans in the system and publish the earnings generated from those loans during the period\nthat the user has specified."
+  },
+  {
+    "tags": [
+      "ReportingFeature",
+      "OperationalReports",
+      "BorrowerFollowUpReport",
+      "ConceptExplanation"
+    ],
+    "content": "2. Borrower Follow-up Report\nThis report helps the lender to retrieve the list of all the loans on which follow-up is required and\nwhen it is required along with other information."
+  },
+  {
+    "tags": [
+      "BatchProcessing",
+      "TaskManagement",
+      "HowTo",
+      "UIElementDescription"
+    ],
+    "content": "Batch Jobs on the LMS portal\nOnce the Backoffice User logs in to the Loan Servicing System, he/she can go to the Left Menu\nPane and click on the “Batch Job->Job Status”.\nUpon clicking the menu, a page opens on the right that allows the option to select a task from a\ndrop-down(“Please Select Task”) which lists all the configured tasks for the tenant. The user can\nselect the date range(“From Date-To Date”) for which they want to check the detailed status of\nthe task.\nThe user clicks on the “Get Task Details” button.\nUpon click, the table on the UI displays the following columns: Task Name, Start Time, Success,\nFail, Skip, and a View Log button.\n* Task Name refers to the task name associated with the batch job.\n* Start Time indicates when the batch job was executed.\n* The Success, Fail, and Skip columns show the count of loans that were successfully\nprocessed by the task, that were not processed successfully by the task or that were skipped by\nthe task respectively.\n* The View Log option provides detailed information on loans where the task was skipped\nor failed, including any errors or handling actions, excluding loans where the task was\nsuccessfully completed.\nThe sample screenshots display the details of an Accrual Batch Job for the specified date\nrange, including the count of loans in each category."
+  }
+]

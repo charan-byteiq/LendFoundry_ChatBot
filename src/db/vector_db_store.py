@@ -4,12 +4,15 @@ import psycopg2
 from psycopg2 import pool
 import os
 from dotenv import load_dotenv
+import google.generativeai as genai
 
 load_dotenv()
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+genai.configure(api_key=GOOGLE_API_KEY)
 
-COLLECTION_NAME = 'my_collection'
-PGVECTOR_CONNECTION_STRING = "postgresql+psycopg://postgres:root@localhost:5432/postgres"
-CONNECTION_STRING = "postgresql://postgres:root@localhost:5432/postgres"
+COLLECTION_NAME = os.getenv("COLLECTION_NAME")
+PGVECTOR_CONNECTION_STRING = os.getenv("PGVECTOR_CONNECTION_STRING")
+CONNECTION_STRING = os.getenv("CONNECTION_STRING")
 
 # Create a connection pool
 db_pool = pool.SimpleConnectionPool(1, 10, dsn=CONNECTION_STRING)
@@ -29,15 +32,18 @@ def release_db_connection(conn):
 def collection_exists(conn, collection_name):
     """
     Checks if a collection exists in the database.
+    Updated to work with langchain_postgres's unified table structure.
     """
     with conn.cursor() as cur:
+        # Check if the collection exists as a row in langchain_pg_collection
         cur.execute("""
             SELECT EXISTS (
-                SELECT FROM pg_tables
-                WHERE schemaname = 'public' AND tablename  = %s
+                SELECT 1 FROM langchain_pg_collection
+                WHERE name = %s
             );
-        """, (f'langchain_pg_collection_{collection_name}',))
+        """, (collection_name,))
         return cur.fetchone()[0]
+
 
 def get_vector_store(embeddings=None):
     """

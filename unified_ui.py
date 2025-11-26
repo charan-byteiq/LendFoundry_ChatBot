@@ -5,6 +5,7 @@ import os
 # --- Configuration ---
 DOC_CHATBOT_URL = "http://127.0.0.1:8000/ask/"
 DB_CHATBOT_URL = "http://127.0.0.1:8001/api/chat"
+LF_ASSIST_URL = "http://127.0.0.1:8002/chat" # New endpoint
 
 # --- Page Setup ---
 st.set_page_config(page_title="LendFoundry AI Assistant", layout="wide")
@@ -76,6 +77,16 @@ def handle_doc_query(prompt, file_content, file_name):
     except requests.exceptions.RequestException as e:
         return f"Error connecting to the Document Assistant: {e}"
 
+def handle_lf_assist_query(prompt):
+    """Sends a prompt to the LF Assist chatbot backend."""
+    try:
+        payload = {"query": prompt}
+        res = requests.post(LF_ASSIST_URL, json=payload, timeout=60)
+        res.raise_for_status()
+        return res.json().get("answer", "Sorry, I couldn't get a response from LF Assist.")
+    except requests.exceptions.RequestException as e:
+        return f"Error connecting to the LF Assist: {e}"
+
 # --- Sidebar for Chatbot Selection ---
 with st.sidebar:
     st.title("LendFoundry")
@@ -89,7 +100,7 @@ with st.sidebar:
 
     st.radio(
         "Choose an assistant:",
-        ("Database Assistant", "Document Assistant"),
+        ("Database Assistant", "Document Assistant", "LF Assist"),
         key="chatbot_type",
         on_change=on_chatbot_change
     )
@@ -101,8 +112,11 @@ with st.sidebar:
             st.session_state.uploaded_file_content = uploaded_file.getvalue()
             st.session_state.uploaded_file_name = uploaded_file.name
             st.success(f"Uploaded `{uploaded_file.name}`. You can now ask questions about it.")
-    else:
+    elif st.session_state.chatbot_type == "Database Assistant":
         st.info("Ask questions in natural language to query the database.")
+    elif st.session_state.chatbot_type == "LF Assist":
+        st.info("Ask questions to the LF Assistant.")
+
 
 # --- Main Chat Interface ---
 st.header(f"AI {st.session_state.chatbot_type}")
@@ -115,7 +129,8 @@ for message in st.session_state.messages:
 # Determine if the chat input should be disabled
 is_doc_chat_ready = st.session_state.chatbot_type == "Document Assistant" and st.session_state.uploaded_file_content is not None
 is_db_chat_ready = st.session_state.chatbot_type == "Database Assistant"
-chat_input_disabled = not (is_doc_chat_ready or is_db_chat_ready)
+is_lf_assist_ready = st.session_state.chatbot_type == "LF Assist"
+chat_input_disabled = not (is_doc_chat_ready or is_db_chat_ready or is_lf_assist_ready)
 placeholder_text = "Please upload a document to begin" if st.session_state.chatbot_type == "Document Assistant" and not is_doc_chat_ready else "Ask your question here..."
 
 # Single chat input at the bottom
@@ -137,7 +152,9 @@ if prompt := st.chat_input(placeholder_text, disabled=chat_input_disabled):
                 else:
                     # This case should ideally not be hit due to disabled input
                     response = "There seems to be an issue. Please upload a file again."
-            
+            elif st.session_state.chatbot_type == "LF Assist":
+                response = handle_lf_assist_query(prompt)
+
             st.markdown(response)
     
     # Add assistant response to state

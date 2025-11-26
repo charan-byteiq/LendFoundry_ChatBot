@@ -1,13 +1,15 @@
 from typing import TypedDict, Annotated, List, Dict, Any
 from langgraph.graph import StateGraph, END
 from langgraph.graph.message import add_messages
-import json
-import asyncio
 from langchain_google_genai import ChatGoogleGenerativeAI
 import google.generativeai as genai
 from .llm_model_gemini import SQLQueryGenerator
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_classic.memory import ConversationBufferMemory
+import os
+
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+genai.configure(api_key=GOOGLE_API_KEY)
 
 class SQLAgentState(TypedDict):
     """State structure for the SQL agent workflow"""
@@ -28,9 +30,8 @@ class SQLAgentState(TypedDict):
 from langchain_classic.memory import ConversationBufferMemory
 
 class SQLLangGraphAgentGemini:
-    def __init__(self, vector_store, embeddings, join_details, schema_info, query_runner=None, memory=None):
+    def __init__(self, vector_store, join_details, schema_info, query_runner=None, memory=None):
         self.vector_store = vector_store
-        self.embeddings = embeddings
         self.sql_generator = SQLQueryGenerator()
         self.join_details = join_details
         self.schema_info = schema_info 

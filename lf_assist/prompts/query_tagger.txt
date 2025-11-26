@@ -1,0 +1,66 @@
+Your task is to tag the user query as per the tags defined below:
+
+<tags>
+
+**Tag Categories & Descriptions:**
+
+* **DocumentLevel:** Tags describing the overall nature or high-level structure of a document segment.
+* `ProductOverview`: General introduction and high-level description of the software product.
+* `Architecture`: Information about the system's underlying design, structure, and components (e.g., microservices).
+* **FeatureType:** Tags identifying specific functionalities, capabilities, or aspects of the software.
+* `CoreFunctionality`: Describes fundamental operations and primary purposes of the LMS.
+* `AssetClassSupport`: Details the types of financial products or loan types the LMS can manage.
+* `MCA`: Specific information related to Merchant Cash Advances.
+* `TermLoan`: Specific information related to Term Loans.
+* `LOC`: Specific information related to Lines of Credit.
+* `SCF`: Specific information related to Supply Chain Financing.
+* `CRERoan`: Specific information related to Commercial Real Estate Loans.
+* `ConstructionLoan`: Specific information related to Construction Loans.
+* `CustomerServiceFeature`: Features designed to support customer interaction, self-service, or query resolution.
+* `SecurityFeature`: Information about security mechanisms, protocols, and features.
+* `TwoFactorAuthentication`: Details about 2FA setup and usage.
+* `SingleSignOn`: Details about SSO capabilities and configuration.
+* `OnboardingProcess`: Describes how loans or data are brought into the LMS.
+* `LoanOnboarding`: General process of adding new loans.
+* `BulkOnboarding`: Process for adding multiple loans simultaneously.
+* `UIOnboarding`: Process for adding loans via the user interface.
+* `DataMigration`: Process of transferring existing loan data from other systems.
+* `UserManagement`: Features related to creating, managing, and authenticating user accounts and roles.
+* `Configuration`: Details about setting up and customizing the LMS for a specific tenant or environment.
+* `TenantSetup`: Initial setup process for a new lender/client.
+* `EnvironmentSetup`: Setting up the technical infrastructure (cloud, servers).
+* `ProductParameters`: Defining specific rules and settings for different loan products.
+* `FeeSetup`: Configuring various fees applicable to loans.
+* `PaymentHierarchy`: Defining the order in which received payments are allocated.
+* `PaymentHierarchySetup`: Setting up payment hierarchies
+* `CalendarConfiguration`: Setting up business days, holidays, etc.
+* `RulesEngine`: Configuring automated rules for system behavior (e.g., auto charge-off).
+* `HolidayConfiguration`: Specifics of how holidays are defined and affect schedules.
+* `Navigation`: How users move through and interact with the LMS user interface.
+* `LandingPage`: Description of the initial screen after login.
+* `FilterPane`: Details about the UI component used for filtering and finding loans.
+* `LoanView`: Description of the screen displaying detailed information for a single loan.
+* `LoanManagementAction`: Specific actions or operations that can be performed on a loan.
+* `UpdatePaymentInstrument`, `MakePayment`, `ChargeOffLoan`, `UploadDocs`, etc.
+
+* **InformationType:** Tags specifying the nature or format of the information presented.
+* `HowTo`, `UIElementDescription`, `ValidationRule`, `SystemBehavior`, `Definition`, etc.
+
+* **Contextual Tags:** Tags like `SelfService`, `LOS_Integration`, `CloudHosting`, etc.
+
+</tags>
+
+Analyze the user query to determine what type of information the user is seeking and what tags can be applied to the question.
+
+Here is the user's query:
+
+<question>
+{question}
+</question>
+
+Please provide your answer in the following format:
+
+Question: [Initial user query]  
+Tag(s): [List of tags associated with the question separated by commas]
+
+Remember, only use the provided defined tags.

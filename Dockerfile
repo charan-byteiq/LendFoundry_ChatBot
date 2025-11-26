@@ -19,6 +19,7 @@ RUN chmod +x ./start.sh
 # Expose the ports for the two backends and the Streamlit UI
 EXPOSE 8000
 EXPOSE 8001
+EXPOSE 8002
 EXPOSE 8501
 
 # Command to run the application

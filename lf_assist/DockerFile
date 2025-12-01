@@ -1,0 +1,54 @@
+FROM python:3.13.7-slim
+
+LABEL maintainer="ByteIQ" \
+      service="lf_assist" \
+      description="Company knowledge assistant backend"
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy only requirements first for better caching
+COPY requirements.txt* ./
+
+# Install dependencies (fallback to root requirements.txt if local doesn't exist)
+RUN if [ -f requirements.txt ]; then \
+        pip install --no-cache-dir --upgrade pip && \
+        pip install --no-cache-dir -r requirements.txt; \
+    fi
+
+# Install core FastAPI dependencies if not in requirements
+RUN pip install --no-cache-dir \
+    fastapi==0.115.0 \
+    uvicorn[standard]==0.32.0 \
+    langchain==0.3.7 \
+    langchain-google-genai==2.0.4 \
+    langchain-qdrant==0.2.0 \
+    qdrant-client==1.12.1 \
+    python-dotenv==1.0.0
+
+# Copy application code
+COPY . .
+
+# Create non-root user for security
+RUN useradd -m -u 1000 appuser && \
+    chown -R appuser:appuser /app && \
+    mkdir -p /app/.cache && \
+    chown -R appuser:appuser /app/.cache
+
+USER appuser
+
+# Expose port
+EXPOSE 8002
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8002/chat/sessions || exit 1
+
+# Run the application
+CMD ["uvicorn", "app.api:app", "--host", "0.0.0.0", "--port", "8002"]

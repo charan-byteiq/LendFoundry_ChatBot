@@ -1,28 +1,22 @@
 import os
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import httpx
+import google.generativeai as genai
+from dotenv import load_dotenv
+from uuid import uuid4
 import asyncio
-import google.generativeai as genai
-from dotenv import load_dotenv
-
-import os
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-import httpx
-import google.generativeai as genai
-from dotenv import load_dotenv
+import random
+from typing import Optional
 
 load_dotenv()
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
 # Backend URLs
-LF_ASSIST_URL = os.getenv("LF_ASSIST_URL", "http://127.0.0.1:8002/chat")
-DOC_ASSIST_URL = os.getenv("DOC_ASSIST_URL", "http://127.0.0.1:8003/ask/")
-DB_ASSIST_URL = os.getenv("DB_ASSIST_URL", "http://127.0.0.1:8001/api/chat")
+LF_ASSIST_URL = os.getenv("LF_ASSIST_URL", "http://127.0.0.1:8002")
+DOC_ASSIST_URL = os.getenv("DOC_ASSIST_URL", "http://127.0.0.1:8003")
+DB_ASSIST_URL = os.getenv("DB_ASSIST_URL", "http://127.0.0.1:8001")
 
 app = FastAPI(title="Unified Chatbot Router")
 
@@ -37,80 +31,197 @@ app.add_middleware(
 class ChatResponse(BaseModel):
     backend: str
     answer: str
+    session_id: str
+    tags: list[str] | None = None
 
-async def classify_query_with_gemini(query: str, doc_uploaded: bool) -> str:
+async def classify_query_with_gemini(
+    query: str, 
+    doc_uploaded: bool,
+    max_retries: int = 3,
+    base_delay: float = 1.0
+) -> str:
     """
-    Classifies the query using a prompt heavily biased towards context.
-    """
+    Classifies the query with automatic retry on failure using exponential backoff.
     
-    # We explicitly tell the model that if a doc is uploaded, 
-    # vague questions usually refer to the document.
+    Args:
+        query: User's query text
+        doc_uploaded: Whether a document was uploaded
+        max_retries: Maximum number of retry attempts (default: 3)
+        base_delay: Base delay in seconds for exponential backoff (default: 1.0)
+    
+    Returns:
+        Classification category string
+    """
     prompt = f"""
-    You are a strict intent router for a corporate chatbot. You must route the user's query to exactly one of three backends based on the context.
+    You are an intent classifier for a corporate lending company's chatbot system.
 
-    ### Context
-    Document Uploaded: {str(doc_uploaded).upper()}
-    User Query: "{query}"
+    The chatbot's PURPOSE is to:
+    - Answer questions about the company's lending policies, procedures, and services
+    - Help users understand uploaded loan documents
+    - Provide loan status and database information
 
-    ### Categories
-    1. **document q&a**
-       - USE THIS IF: A document IS uploaded AND the user asks about "this file", "the pdf", "summarize this", or asks for specific details likely contained in the file.
-       - CRITICAL: If a document is uploaded and the user asks a generic question (e.g., "What are the terms?", "Explain the fees"), assume they are asking about the DOCUMENT.
-       - NOTE: If 'Document Uploaded' is FALSE, you CANNOT choose this category.
+    Classify the user's query into EXACTLY ONE category:
 
-    2. **database**
-       - USE THIS IF: The user asks about specific loan statuses, loan IDs, repayment schedules, or customer data that would be stored in a dynamic SQL database.
-       - Keywords: "loan status", "balance", "how much do I owe", "loan ID #123".
+    1. **company knowledge**
+       - Questions about company policies, lending procedures, loan products, fees, contact info
+       - How-to questions about using the company's services
+       - General information about lending processes
+       Examples: "How do I apply for a loan?", "What are your interest rates?", "What documents do I need?"
 
-    3. **company knowledge**
-       - USE THIS IF: The user asks general questions about the company, policies, contact info, or standard operating procedures that are NOT specific to the uploaded file or a specific loan.
-       - Fallback: If the query is general and NO document is uploaded, use this.
+    2. **document q&a** 
+       - Questions specifically about an uploaded document's content
+       - ONLY choose this if document IS uploaded
+       Examples: "What is the interest rate in this document?", "Summarize this contract","What is the date of birth?"
 
-    ### Output Instruction
-    Analyze the "Document Uploaded" status first.
-    Respond with ONLY one of these exact strings:
-    company knowledge
-    document q&a
-    database
+    3. **database**
+       - Queries about specific loan records, customer data, account balances
+       - Questions requiring database lookup
+       Examples: "What are the number of loans onboarded in last 5 months", "Show loan ID 12345", "How many borrowers have loan amount greater tHAN 20000"
+
+    4. **out_of_scope**
+       - General chitchat or greetings (e.g., "hello", "how are you", "good morning")
+       - Questions completely unrelated to lending/finance
+       - Personal questions about the AI itself
+       - Requests for general knowledge, weather, news, entertainment
+       Examples: "What's the weather today?", "Tell me a joke", "Who won the game?", "Write me a poem"
+
+    Document uploaded: {str(doc_uploaded).lower()}
+    User query: "{query}"
+
+    IMPORTANT RULES:
+    - Greetings and pleasantries → out_of_scope
+    - Questions unrelated to lending/finance → out_of_scope
+    - If document uploaded AND question about the document → document q&a
+    - Loan/database specific queries → database
+    - Company/policy questions → company knowledge
+
+    Respond with EXACTLY one of: company knowledge, document q&a, database, out_of_scope
     """
     
-    # Note: Ensure you are using a valid model name. 
-    # 'gemini-1.5-flash' is the current standard. 
-    # If you have access to 2.5, keep it, otherwise switch to 1.5-flash.
-    model = genai.GenerativeModel('models/gemini-1.5-flash') 
+    model = genai.GenerativeModel('models/gemini-2.5-flash')
+    
+    last_exception = None
+    
+    for attempt in range(max_retries + 1):
+        try:
+            print(f"🔄 Classification attempt {attempt + 1}/{max_retries + 1}")
+            
+            response = await model.generate_content_async(prompt)
+            category = response.text.strip().lower()
+            
+            # Parse response
+            if "out" in category or "scope" in category:
+                return "out_of_scope"
+            elif "document" in category:
+                return "document q&a"
+            elif "database" in category:
+                return "database"
+            elif "company" in category or "knowledge" in category:
+                return "company knowledge"
+            
+            # If we got a response but couldn't parse it, treat as unknown
+            print(f"⚠️ Unrecognized category: {category}")
+            return "out_of_scope"
+            
+        except Exception as e:
+            last_exception = e
+            print(f"⚠️ Gemini classification error (attempt {attempt + 1}/{max_retries + 1}): {e}")
+            
+            # If this was the last attempt, fall back
+            if attempt == max_retries:
+                print(f"❌ Max retries reached. Using fallback classification.")
+                break
+            
+            # Calculate exponential backoff delay with jitter
+            delay = min(base_delay * (2 ** attempt), 10.0)  # Cap at 10 seconds
+            jitter = random.uniform(0, 0.5)  # Add random jitter
+            total_delay = delay + jitter
+            
+            print(f"⏳ Retrying in {total_delay:.2f} seconds...")
+            await asyncio.sleep(total_delay)
+    
+    # Fallback logic if all retries failed
+    print(f"⚠️ Falling back to default classification after {max_retries} retries")
+    return "out_of_scope"  # Conservative fallback to trigger deflection response
+
+
+
+async def generate_deflection_response(query: str) -> str:
+    """
+    Generates a polite, contextual deflection response for out-of-scope queries.
+    Redirects users to the chatbot's purpose without saying "no".
+    """
+    prompt = f"""
+    You are a helpful assistant for a corporate lending company chatbot.
+
+    A user asked: "{query}"
+
+    This question is outside the scope of what you can help with. Your role is to:
+    - Answer questions about lending policies, loan products, and procedures
+    - Help with uploaded loan documents
+    - Provide loan status and account information
+
+    Generate a BRIEF, POLITE response (2-3 sentences max) that:
+    1. Acknowledges their question warmly
+    2. Gently redirects them to what you CAN help with
+    3. NEVER says "no", "can't", "unable", or "not allowed"
+    4. Sounds natural and friendly, not robotic
+
+    Examples of GOOD responses:
+    - "That's an interesting question! I'm here to help you with loan applications, policies, and account information. Is there anything related to our lending services I can assist you with?"
+    - "I appreciate you reaching out! My expertise is in helping customers with loan queries, document reviews, and account details. What can I help you explore about our lending services today?"
+    
+    Examples of BAD responses:
+    - "I cannot answer that question." ❌
+    - "That's outside my scope." ❌
+    - "I'm not allowed to discuss that." ❌
+
+    Generate your polite deflection response now:
+    """
+    
+    model = genai.GenerativeModel('models/gemini-2.5-flash')
     
     try:
         response = await model.generate_content_async(prompt)
-        category = response.text.strip().lower()
+        return response.text.strip()
     except Exception as e:
-        print(f"Gemini Error: {e}")
-        # Fallback logic
-        return "document q&a" if doc_uploaded else "company knowledge"
+        print(f"⚠️ Error generating deflection: {e}")
+        # Fallback response
+        return (
+            "I'd love to help you with that! My specialty is assisting with loan applications, "
+            "policies, document reviews, and account information. What can I help you with "
+            "regarding our lending services today?"
+        )
 
-    # Clean up response just in case
-    if "document" in category:
-        return "document q&a"
-    elif "database" in category:
-        return "database"
-    elif "company" in category:
-        return "company knowledge"
-    
-    # Final fallback
-    return "document q&a" if doc_uploaded else "company knowledge"
 
-async def call_lf_assist(query: str) -> str:
+async def call_lf_assist(query: str, session_id: str) -> dict:
+    """
+    Call LF Assist with session management.
+    """
     async with httpx.AsyncClient() as client:
         try:
-            resp = await client.post(LF_ASSIST_URL, json={"query": query}, timeout=30.0)
+            resp = await client.post(
+                f"{LF_ASSIST_URL}/chat",
+                json={"query": query, "session_id": session_id},
+                timeout=30.0
+            )
             resp.raise_for_status()
             data = resp.json()
-            return data.get("answer", "No answer from LF Assist.")
+            return {
+                "answer": data.get("answer", "No answer from LF Assist."),
+                "tags": data.get("tags", []),
+                "session_id": data.get("session_id", session_id)
+            }
         except Exception as e:
-            return f"LF Assist error: {str(e)}"
+            print(f"❌ LF Assist Error: {e}")
+            return {"answer": f"LF Assist error: {str(e)}", "tags": [], "session_id": session_id}
+
 
 async def call_doc_assist(query: str, file: UploadFile) -> str:
+    """
+    Call Doc Assist with multipart form data.
+    """
     try:
-        # Reset file cursor to 0 just in case it was read elsewhere
         await file.seek(0)
         file_content = await file.read()
         
@@ -119,188 +230,178 @@ async def call_doc_assist(query: str, file: UploadFile) -> str:
                 "question": (None, query),
                 "file": (file.filename, file_content, file.content_type or 'application/pdf')
             }
-            # Increased timeout for document processing
-            resp = await client.post(DOC_ASSIST_URL, files=files, timeout=60.0)
+            
+            resp = await client.post(
+                f"{DOC_ASSIST_URL}/ask/",
+                files=files,
+                timeout=60.0
+            )
             resp.raise_for_status()
             data = resp.json()
-            # Handle different capitalization keys
-            return data.get("answer") or data.get("Answer") or "No answer from Doc Assist."
+            return data.get("answer", "No answer from Doc Assist.")
+            
     except Exception as e:
+        print(f"❌ Doc Assist Error: {e}")
         return f"Doc Assist error: {str(e)}"
 
+
 async def call_db_assist(query: str) -> str:
+    """
+    Call DB Assist with JSON payload.
+    """
     async with httpx.AsyncClient() as client:
         try:
-            resp = await client.post(DB_ASSIST_URL, json={"prompt": query}, timeout=30.0)
+            resp = await client.post(
+                f"{DB_ASSIST_URL}/api/chat",
+                json={"prompt": query},
+                timeout=30.0
+            )
             resp.raise_for_status()
             data = resp.json()
-            return data.get("response", "No answer from DB Assist.")
+            return data.get("response", "No response from DB Assist.")
+            
         except Exception as e:
+            print(f"❌ DB Assist Error: {e}")
             return f"DB Assist error: {str(e)}"
+
 
 @app.post("/chat", response_model=ChatResponse)
 async def unified_chat(
     message: str = Form(...),
+    session_id: str = Form(default=None),
     file: UploadFile | None = File(default=None),
 ):
-    doc_uploaded = file is not None
-
-    # 1. Classify
-    category = await classify_query_with_gemini(message, doc_uploaded)
+    """
+    Unified chat endpoint with intelligent scope detection and polite deflection.
     
-    # 2. Logic to handle "Impossible" cases
-    # If Gemini hallucinated "document q&a" but no file is there, force fallback
+    Handles four types of queries:
+    1. Company knowledge - Routes to LF Assist
+    2. Document Q&A - Routes to Doc Assist
+    3. Database queries - Routes to DB Assist
+    4. Out-of-scope - Generates polite deflection response
+    """
+    
+    # Generate or use existing session_id
+    if not session_id:
+        session_id = str(uuid4())
+        print(f"🆕 New session: {session_id}")
+    else:
+        print(f"🔄 Continuing session: {session_id}")
+    
+    doc_uploaded = file is not None
+    print(f"📩 Query: '{message}' | Doc: {doc_uploaded}")
+
+    # Step 1: Classify the query
+    category = await classify_query_with_gemini(message, doc_uploaded)
+    print(f"🎯 Category: {category}")
+    
+    # Step 2: Handle out-of-scope queries with deflection
+    if category == "out_of_scope":
+        print("🚫 Out of scope - generating deflection response")
+        answer = await generate_deflection_response(message)
+        return ChatResponse(
+            backend="scope_guard",
+            answer=answer,
+            session_id=session_id,
+            tags=None
+        )
+    
+    # Step 3: Handle edge cases
     if category == "document q&a" and not doc_uploaded:
+        print("⚠️ Document Q&A without file - fallback to company knowledge")
         category = "company knowledge"
 
-    # 3. Route
+    # Step 4: Route to appropriate backend
     answer = ""
     backend = ""
+    tags = []
 
     if category == "company knowledge":
-        answer = await call_lf_assist(message)
+        print("→ Routing to LF Assist")
+        result = await call_lf_assist(message, session_id)
+        answer = result["answer"]
+        tags = result.get("tags", [])
+        session_id = result.get("session_id", session_id)
         backend = "lf_assist"
+        
     elif category == "document q&a":
+        print("→ Routing to Doc Assist")
         answer = await call_doc_assist(message, file)
         backend = "doc_assist"
+        
     elif category == "database":
+        print("→ Routing to DB Assist")
         answer = await call_db_assist(message)
         backend = "db_assist"
+        
     else:
         # Fallback
-        answer = await call_lf_assist(message)
+        print("⚠️ Unknown category - fallback to LF Assist")
+        result = await call_lf_assist(message, session_id)
+        answer = result["answer"]
+        tags = result.get("tags", [])
+        session_id = result.get("session_id", session_id)
         backend = "lf_assist"
 
-    return ChatResponse(backend=backend, answer=answer)
-load_dotenv()
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+    print(f"✅ Response from {backend}: {answer[:100]}...")
+    
+    return ChatResponse(
+        backend=backend,
+        answer=answer,
+        session_id=session_id,
+        tags=tags if tags else None
+    )
 
 
-
-# Backend URLs - replace with your actual endpoints or load from config
-LF_ASSIST_URL = os.getenv("LF_ASSIST_URL", "http://127.0.0.1:8002/chat")
-DOC_ASSIST_URL = os.getenv("DOC_ASSIST_URL", "http://127.0.0.1:8003/ask/")
-DB_ASSIST_URL = os.getenv("DB_ASSIST_URL", "http://127.0.0.1:8001/api/chat")
-
-app = FastAPI(title="Unified Chatbot Router")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # For production restrict origins
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-class ChatRequest(BaseModel):
-    message: str
-
-class ChatResponse(BaseModel):
-    backend: str
-    answer: str
-
-async def classify_query_with_gemini(query: str, doc_uploaded: bool) -> str:
-    """
-    Call Gemini 2.5 Flash to classify the query into one of:
-    'company knowledge', 'document Q&A', or 'database'.
-    """
-    prompt = f"""
-            You are an intent classifier for a company chatbot system with three assistants.
-
-            Possible categories:
-            1. company knowledge - Classify the question into this category if the user seems to be asking to know about the company. 
-            Basically you can classify any question that a company manual can answer into this category. Questions answered by LF Assist. 
-            2. document Q&A - Classify the question into this category if the user is asking specific questions about any uploaded document.
-            Questions answered by Doc Assist about the uploaded document.
-            3. database - Classify the question into this category if the user asks questions related to a database. 
-            The database contains information about loans and details of the loans. Questions answered by DB Assist querying company database.
-
-            Document uploaded: {str(doc_uploaded).lower()}
-
-            User question: {query}
-
-            Respond only with exactly one category label among: company knowledge, document Q&A, database.
-            """
-    model = genai.GenerativeModel('models/gemini-2.5-flash')
-    response = model.generate_content([prompt])
-    category = response.text.strip().lower()
-
-    if category not in {"company knowledge", "document q&a", "database"}:
-        # Fallback or unknown classification
-        category = "company knowledge"
-    return category
-
-async def call_lf_assist(query: str) -> str:
+@app.post("/chat/clear/{session_id}")
+async def clear_session(session_id: str):
+    """Clear conversation history for LF Assist session."""
     async with httpx.AsyncClient() as client:
         try:
-            resp = await client.post(LF_ASSIST_URL, json={"query": query})
+            resp = await client.post(
+                f"{LF_ASSIST_URL}/chat/clear",
+                params={"session_id": session_id},
+                timeout=10.0
+            )
             resp.raise_for_status()
-            data = resp.json()
-            return data.get("answer", "No answer from LF Assist.")
+            print(f"🗑️ Cleared session: {session_id}")
+            return {"message": f"Session {session_id} cleared", "success": True}
         except Exception as e:
-            return f"LF Assist error: {str(e)}"
+            print(f"❌ Error clearing session: {e}")
+            return {"message": f"Error: {str(e)}", "success": False}
 
-async def call_doc_assist(query: str, file: UploadFile) -> str:
-    """
-    Sends multipart/form-data with query and pdf file to Doc Assist.
-    """
-    try:
-        file_content = await file.read()
-        async with httpx.AsyncClient() as client:
-            files = {
-                "question": (None, query),
-                "file": (file.filename, file_content, file.content_type or 'application/pdf')
-            }
-            resp = await client.post(DOC_ASSIST_URL, files=files)
-            resp.raise_for_status()
-            data = resp.json()
-            return data.get("answer") or data.get("Answer") or "No answer from Doc Assist."
-    except Exception as e:
-        return f"Doc Assist error: {str(e)}"
 
-async def call_db_assist(query: str) -> str:
+@app.get("/health")
+async def health_check():
+    """Check health of all backend services."""
+    health_status = {}
+    
     async with httpx.AsyncClient() as client:
+        # Check LF Assist
         try:
-            resp = await client.post(DB_ASSIST_URL, json={"prompt": query})
-            resp.raise_for_status()
-            data = resp.json()
-            return data.get("response", "No answer from DB Assist.")
-        except Exception as e:
-            return f"DB Assist error: {str(e)}"
+            await client.get(f"{LF_ASSIST_URL}/chat/sessions", timeout=5.0)
+            health_status["lf_assist"] = "healthy"
+        except:
+            health_status["lf_assist"] = "unhealthy"
+        
+        # Check Doc Assist
+        try:
+            await client.get(f"{DOC_ASSIST_URL}/", timeout=5.0)
+            health_status["doc_assist"] = "healthy"
+        except:
+            health_status["doc_assist"] = "unhealthy"
+        
+        health_status["db_assist"] = "unknown"
+        health_status["scope_guard"] = "healthy"
+    
+    return {"status": health_status}
 
-@app.post("/chat", response_model=ChatResponse)
-async def unified_chat(
-    message: str = Form(...),
-    file: UploadFile | None = File(default=None),
-):
-    """
-    Unified chat endpoint that:
-    1. Checks if document is uploaded and flags that for classification.
-    2. Calls Gemini LLM for routing decision.
-    3. Routes to correct backend and returns response.
-    """
-    doc_uploaded = file is not None
 
-    category = await classify_query_with_gemini(message, doc_uploaded)
-
-    if category == "company knowledge":
-        answer = await call_lf_assist(message)
-        backend = "lf_assist"
-    elif category == "document q&a" and doc_uploaded:
-        answer = await call_doc_assist(message, file)
-        backend = "doc_assist"
-    elif category == "database":
-        answer = await call_db_assist(message)
-        backend = "db_assist"
-    else:
-        # Fallback if doc Q&A without file
-        if doc_uploaded:
-            # If doc is uploaded but not classified correctly - fallback to doc assist
-            answer = await call_doc_assist(message, file)
-            backend = "doc_assist"
-        else:
-            # Otherwise fallback to company knowledge
-            answer = await call_lf_assist(message)
-            backend = "lf_assist"
-
-    return ChatResponse(backend=backend, answer=answer)
+@app.get("/")
+def root():
+    return {
+        "service": "Unified Chatbot Router",
+        "version": "2.0",
+        "backends": ["lf_assist", "doc_assist", "db_assist", "scope_guard"],
+        "features": ["session_management", "scope_detection", "polite_deflection"]
+    }

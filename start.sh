@@ -1,17 +1,46 @@
 #!/bin/bash
 
-# Start the Document Chatbot Backend in the background
-echo "Starting Document Chatbot Backend..."
-uvicorn new.main:app --host 0.0.0.0 --port 8000 &
+echo "Starting Multi-Backend Chatbot System with Docker"
 
-# Start the Database Chatbot Backend in the background
-echo "Starting Database Chatbot Backend..."
-uvicorn src.api:app --host 0.0.0.0 --port 8001 &
+# Check if docker-compose is installed
+if ! command -v docker-compose &> /dev/null; then
+    echo " docker-compose is not installed. Please install it first."
+    exit 1
+fi
 
-# Start the LF Assist Chatbot Backend in the background
-echo "Starting LF Assist Chatbot Backend..."
-(cd lf_assist && uvicorn app.api:app --host 0.0.0.0 --port 8002) &
+# Check if .env file exists
+if [ ! -f .env ]; then
+    echo ".env file not found. Copying from .env.example..."
+    cp .env.example .env
+    echo ".env file created. Please update it with your credentials."
+    exit 1
+fi
 
-# Start the Streamlit UI in the foreground
-echo "Starting Unified UI..."
-streamlit run unified_ui.py --server.port 8501 --server.address 0.0.0.0
+# Build and start services
+echo "Building Docker images..."
+docker-compose build
+
+echo "Starting services..."
+docker-compose up -d
+
+echo "Waiting for services to be healthy..."
+sleep 10
+
+# Check service status
+docker-compose ps
+
+echo ""
+echo "Services started!"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "Access URLs:"
+echo "   • Streamlit UI:    http://localhost:8501"
+echo "   • Unified API:     http://localhost:8000"
+echo "   • LF Assist:       http://localhost:8002"
+echo "   • Doc Assist:      http://localhost:8003"
+echo "   • DB Assist:       http://localhost:8001"
+echo "   • Qdrant:          http://localhost:6333"
+echo "   • PostgreSQL:      localhost:5432"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+echo "View logs: docker-compose logs -f"
+echo "Stop all:  docker-compose down"

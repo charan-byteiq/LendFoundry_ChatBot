@@ -1,4 +1,5 @@
 .env
 /venv
-src/db/query_runnerV2.py
+# src/db/query_runnerV2.py
 /apicheck.py
+/charan-ec2.pem

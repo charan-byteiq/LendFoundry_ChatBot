@@ -1,42 +1,44 @@
 from typing import TypedDict, Annotated, List, Dict, Any
 from langgraph.graph import StateGraph, END
 from langgraph.graph.message import add_messages
+from langgraph.checkpoint.memory import MemorySaver
+from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 import google.generativeai as genai
 from .llm_model_gemini import SQLQueryGenerator
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_classic.memory import ConversationBufferMemory
 import os
+
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 genai.configure(api_key=GOOGLE_API_KEY)
 
+
 class SQLAgentState(TypedDict):
     """State structure for the SQL agent workflow"""
     user_question: str
-    chat_history: List[str] = []
-    schema_info: List[Dict[str, Any]]  # Overall database structure
-    table_info: str                    # Specific table information (NEW)
+    messages: Annotated[List[BaseMessage], add_messages]  # Changed from chat_history
+    schema_info: List[Dict[str, Any]]
+    table_info: str
     raw_sql_query: str
     cleaned_sql_query: str
     validation_result: Dict[str, Any]
     execution_result: str
-    natural_language_response: str  # New field for the final answer
+    natural_language_response: str
     error_message: str
     current_step: str
     is_complete: bool
     retry_count: int
 
-from langchain_classic.memory import ConversationBufferMemory
 
 class SQLLangGraphAgentGemini:
-    def __init__(self, vector_store, join_details, schema_info, query_runner=None, memory=None):
+    def __init__(self, vector_store, join_details, schema_info, query_runner=None):
         self.vector_store = vector_store
         self.sql_generator = SQLQueryGenerator()
         self.join_details = join_details
         self.schema_info = schema_info 
         self.query_runner = query_runner
-        self.memory = memory if memory is not None else ConversationBufferMemory()
+        # Removed: self.memory parameter
         
         # Initialize the LLM for any additional reasoning if needed
         self.llm = ChatGoogleGenerativeAI(
@@ -44,6 +46,9 @@ class SQLLangGraphAgentGemini:
             temperature=0.1,
             max_tokens=2048
         )
+        
+        # Add checkpointer for persistence
+        self.checkpointer = MemorySaver()
         
         # Build the workflow graph
         self.workflow = self._build_workflow()
@@ -116,16 +121,28 @@ class SQLLangGraphAgentGemini:
         workflow.add_edge("natural_language_generation", END)
         workflow.add_edge("error_handler", END)
         
-        return workflow.compile()
+        # Compile with checkpointer for persistence
+        return workflow.compile(checkpointer=self.checkpointer)
     
     def _rewrite_question_node(self, state: SQLAgentState) -> Dict[str, Any]:
         """Rewrite the user's question to be more specific based on chat history"""
         try:
-            if not state['chat_history']:
+            # If there is no chat history (only current message), skip rewriting
+            if len(state['messages']) <= 1:
                 return {
                     "user_question": state['user_question'],
                     "current_step": "question_rewriting_skipped"
                 }
+
+            # Format chat history from messages (exclude the current question)
+            chat_history_messages = []
+            for msg in state['messages'][:-1]:  # Exclude last message (current question)
+                if isinstance(msg, HumanMessage):
+                    chat_history_messages.append(f"User: {msg.content}")
+                elif isinstance(msg, AIMessage):
+                    chat_history_messages.append(f"Assistant: {msg.content}")
+            
+            chat_history_text = "\n".join(chat_history_messages)
 
             # LCEL implementation for question rewriting
             rewrite_prompt = ChatPromptTemplate.from_messages([
@@ -136,7 +153,7 @@ class SQLLangGraphAgentGemini:
             rewriter_chain = rewrite_prompt | self.llm
             
             rewritten_question_message = rewriter_chain.invoke({
-                "chat_history": state['chat_history'],
+                "chat_history": chat_history_text,
                 "question": state['user_question']
             })
             
@@ -156,7 +173,6 @@ class SQLLangGraphAgentGemini:
     def _schema_search_node(self, state: SQLAgentState) -> Dict[str, Any]:
         """Search for relevant schema and table information"""
         try:
-            
             # Combine user question with chat history for better context
             full_query = f"User Question: {state['user_question']}"
 
@@ -191,7 +207,7 @@ class SQLLangGraphAgentGemini:
             
             return {
                 "schema_info": schema_info,
-                "table_info": table_info_str,          # NEW field
+                "table_info": table_info_str,
                 "current_step": "schema_search_complete",
                 "error_message": ""
             }
@@ -201,14 +217,22 @@ class SQLLangGraphAgentGemini:
                 "error_message": f"Schema search failed: {str(e)}",
                 "current_step": "schema_search_failed"
             }
-
     
     def _sql_generation_node(self, state: SQLAgentState) -> Dict[str, Any]:
         """Generate SQL query based on schema information"""
         try:
+            # Format chat history from messages for context
+            chat_history_messages = []
+            for msg in state['messages'][:-1]:  # Exclude current question
+                if isinstance(msg, HumanMessage):
+                    chat_history_messages.append(f"User: {msg.content}")
+                elif isinstance(msg, AIMessage):
+                    chat_history_messages.append(f"Assistant: {msg.content}")
+            
+            chat_history_text = "\n".join(chat_history_messages)
             
             # Combine user question with chat history for better context
-            full_query = f"{state['chat_history']}\n\nUser Question: {state['user_question']}"
+            full_query = f"{chat_history_text}\n\nUser Question: {state['user_question']}" if chat_history_text else f"User Question: {state['user_question']}"
 
             # Convert schema info to string format
             schema_content = [
@@ -220,8 +244,8 @@ class SQLLangGraphAgentGemini:
             # Use schema_info for both parameters if table_info is not separately defined
             raw_query = self.sql_generator.generate_sql_query(
                 user_request=full_query,
-                table_info=schema_info_str,          # Use schema info as table info
-                schema_info=self.schema_info,         # Keep original schema info
+                table_info=schema_info_str,
+                schema_info=self.schema_info,
                 join_details=self.join_details,
                 database_type="PostgreSQL",
                 max_tokens=1000
@@ -238,12 +262,10 @@ class SQLLangGraphAgentGemini:
                 "error_message": f"SQL generation failed: {str(e)}",
                 "current_step": "sql_generation_failed"
             }
-
     
     def _query_validation_node(self, state: SQLAgentState) -> Dict[str, Any]:
         """Validate and clean the generated SQL query"""
         try:
-            
             if not state["raw_sql_query"]:
                 return {
                     "error_message": "SQL generation returned no query.",
@@ -262,7 +284,7 @@ class SQLLangGraphAgentGemini:
             validation_result = {
                 "is_safe": "unsafe" not in safety_result.lower(),
                 "safety_message": safety_result,
-                "has_syntax_errors": False  # You can add more validation here
+                "has_syntax_errors": False
             }
             
             return {
@@ -281,7 +303,6 @@ class SQLLangGraphAgentGemini:
     def _query_execution_node(self, state: SQLAgentState) -> Dict[str, Any]:
         """Execute the validated SQL query"""
         try:
-            
             if not self.query_runner:
                 return {
                     "execution_result": "Query execution skipped - no query runner configured",
@@ -294,7 +315,7 @@ class SQLLangGraphAgentGemini:
             return {
                 "execution_result": str(result),
                 "current_step": "execution_complete",
-                "is_complete": False, # Continue to natural language generation
+                "is_complete": False,  # Continue to natural language generation
                 "error_message": ""
             }
             
@@ -308,6 +329,15 @@ class SQLLangGraphAgentGemini:
     def _natural_language_generation_node(self, state: SQLAgentState) -> Dict[str, Any]:
         """Generate a natural language response based on the SQL query result."""
         try:
+            # Check for execution errors
+            if state.get("error_message") and "Query execution failed" in state.get("error_message", ""):
+                error_msg = state["error_message"]
+                return {
+                    "messages": [AIMessage(content=error_msg)],
+                    "execution_result": error_msg,
+                    "current_step": "error_forwarded",
+                    "is_complete": True
+                }
             
             # LCEL implementation for natural language generation
             nl_prompt = ChatPromptTemplate.from_messages([
@@ -324,24 +354,31 @@ class SQLLangGraphAgentGemini:
 
             natural_language_response = nl_response_message.content.strip()
             
+            # Add AI response to messages
             return {
-                "execution_result": natural_language_response, # Overwrite with the natural language response
+                "messages": [AIMessage(content=natural_language_response)],
+                "execution_result": natural_language_response,
                 "current_step": "natural_language_generation_complete",
                 "is_complete": True
             }
             
         except Exception as e:
+            error_msg = f"Natural language generation failed: {str(e)}"
             return {
-                "error_message": f"Natural language generation failed: {str(e)}",
+                "messages": [AIMessage(content=error_msg)],
+                "error_message": error_msg,
                 "current_step": "natural_language_generation_failed",
                 "is_complete": True
             }
     
     def _error_handler_node(self, state: SQLAgentState) -> Dict[str, Any]:
         """Handle errors and provide meaningful feedback"""
-        print(f" Error occurred: {state.get('error_message', 'Unknown error')}")
+        error_msg = state.get('error_message', 'Unknown error')
+        print(f"Error occurred: {error_msg}")
         
         return {
+            "messages": [AIMessage(content=error_msg)],
+            "execution_result": error_msg,
             "current_step": "error_handled",
             "is_complete": True
         }
@@ -388,18 +425,20 @@ class SQLLangGraphAgentGemini:
                 return "error"
         return "continue"
     
-    def process_query(self, user_question: str) -> Dict[str, Any]:
-        """Process a user query through the complete workflow"""
+    def process_query(self, user_question: str, thread_id: str = "default") -> Dict[str, Any]:
+        """Process a user query through the complete workflow
         
-        # Load chat history
-        chat_history = self.memory.load_memory_variables({}).get("history", [])
-
-        # Initialize state with the new table_info field
+        Args:
+            user_question: The user's question
+            thread_id: Unique identifier for the conversation thread (e.g., user_id or session_id)
+        """
+        
+        # Initialize state with messages
         initial_state = SQLAgentState(
             user_question=user_question,
-            chat_history=chat_history,
+            messages=[HumanMessage(content=user_question)],
             schema_info=[],
-            table_info="",                    # NEW field initialization
+            table_info="",
             raw_sql_query="",
             cleaned_sql_query="",
             validation_result={},
@@ -411,16 +450,17 @@ class SQLLangGraphAgentGemini:
             retry_count=0
         )
         
+        # Configuration with thread_id for persistence
+        config = {"configurable": {"thread_id": thread_id}}
         
         try:
-            # Run the workflow
-            final_state = self.workflow.invoke(initial_state)
+            # Run the workflow with config
+            final_state = self.workflow.invoke(initial_state, config)
             
             # Format the response
             response = self._format_response(final_state)
-
-            # Save context to memory
-            self.memory.save_context({"input": user_question}, {"output": response.get("execution_result", "")})
+            
+            # No need to manually save context - checkpointer handles it automatically!
             
             return response
             
@@ -430,7 +470,6 @@ class SQLLangGraphAgentGemini:
                 "error": f"Workflow execution failed: {str(e)}",
                 "user_question": user_question
             }
-
     
     def _format_response(self, state: SQLAgentState) -> Dict[str, Any]:
         """Format the final response"""
@@ -447,7 +486,7 @@ class SQLLangGraphAgentGemini:
             "success": True,
             "user_question": state["user_question"],
             "schema_info": state.get("schema_info", []),
-            "table_info": state.get("table_info", ""),        # NEW field in response
+            "table_info": state.get("table_info", ""),
             "raw_sql_query": state.get("raw_sql_query", ""),
             "cleaned_sql_query": state.get("cleaned_sql_query", ""),
             "validation_result": state.get("validation_result", {}),

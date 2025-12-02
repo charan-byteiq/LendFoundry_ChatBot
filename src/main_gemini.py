@@ -9,7 +9,7 @@ import google.generativeai as genai
 # Adjust imports to be relative to the 'src' directory
 from src.agents.gemini.sql_langgraph_agent_gemini import SQLLangGraphAgentGemini
 from src.db.vector_db_store import store_in_vector_db, get_vector_store
-from src.db.query_runnerV2 import RedshiftSQLTool
+from src.db.query_runner import RedshiftSQLTool
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 

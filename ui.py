@@ -5,8 +5,7 @@ from datetime import datetime
 
 # Page config
 st.set_page_config(
-    page_title="Multi-Assistant Chatbot",
-    page_icon="🤖",
+    page_title="LendFoundry",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -96,7 +95,7 @@ if "uploaded_file" not in st.session_state:
 
 # Sidebar
 with st.sidebar:
-    st.title("🤖 Multi-Assistant Chatbot")
+    st.title("LendFoundry")
     st.markdown("---")
     
     # Session info
@@ -105,16 +104,7 @@ with st.sidebar:
         st.info(f"**Session ID:** `{st.session_state.session_id[:8]}...`")
         st.caption(f"Messages: {len(st.session_state.messages)}")
     else:
-        st.warning("No active session")
-    
-    st.markdown("---")
-    
-    # Backend status
-    st.subheader("🎯 Available Assistants")
-    for backend, config in BACKEND_CONFIG.items():
-        st.markdown(f"**{config['name']}**")
-        st.caption(config['description'])
-        st.markdown("")
+        st.warning("No active session") 
     
     st.markdown("---")
     

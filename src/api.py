@@ -1,6 +1,6 @@
 import sys
 import os
-from fastapi import FastAPI
+from fastapi import APIRouter
 from pydantic import BaseModel
 from fastapi.responses import JSONResponse
 import uuid
@@ -10,15 +10,15 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from main_gemini import Chatbot
 
-app = FastAPI()
+# Create router instead of app
+router = APIRouter(prefix="/db-assist", tags=["DB Assist"])
 
 # Initialize the chatbot
 chatbot = Chatbot()
 
-
 class ChatRequest(BaseModel):
     prompt: str
-    thread_id: str = None  # Optional: unique identifier for user/session
+    thread_id: str = None
     
     class Config:
         json_schema_extra = {
@@ -28,22 +28,16 @@ class ChatRequest(BaseModel):
             }
         }
 
-
-@app.post("/api/chat")
-async def chat(request: ChatRequest):
+# Core logic extracted as callable function
+async def process_db_query(prompt: str, thread_id: str = None) -> dict:
     """
-    Endpoint to handle chat requests and return a standard JSON response.
-    
-    Args:
-        request.prompt: User's question
-        request.thread_id: Optional unique identifier for the conversation thread.
-                          If not provided, generates a new one (no history).
+    Core DB Assist logic - can be called directly from unified API
     """
-    # Generate thread_id if not provided (new conversation)
-    thread_id = request.thread_id or str(uuid.uuid4())
+    # Generate thread_id if not provided
+    thread_id = thread_id or str(uuid.uuid4())
     
-    # Process the query with thread_id for conversation persistence
-    result = await chatbot.get_response(request.prompt, thread_id=thread_id)
+    # Process the query
+    result = await chatbot.get_response(prompt, thread_id=thread_id)
     
     if result and result.get('success'):
         response_data = result.get('execution_result', 'No execution result found.')
@@ -52,14 +46,22 @@ async def chat(request: ChatRequest):
     else:
         response_data = "I'm sorry, something went wrong and I didn't get a result."
     
-    return JSONResponse(content={
+    return {
         "response": response_data,
-        "thread_id": thread_id,  # Return thread_id so client can reuse it
+        "thread_id": thread_id,
         "success": result.get('success', False)
-    })
+    }
 
+# Router endpoints
+@router.post("/chat")
+async def chat(request: ChatRequest):
+    """
+    Endpoint to handle chat requests and return a standard JSON response.
+    """
+    result = await process_db_query(request.prompt, request.thread_id)
+    return JSONResponse(content=result)
 
-@app.get("/api/health")
+@router.get("/health")
 async def health_check():
     """Health check endpoint to verify agent status"""
     status = chatbot.get_agent_status()

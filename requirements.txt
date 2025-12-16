@@ -17,3 +17,7 @@ langchain-core
 langchain-qdrant
 langchain-postgres
 qdrant-client
+pandas
+sentence-transformers
+dotenv
+

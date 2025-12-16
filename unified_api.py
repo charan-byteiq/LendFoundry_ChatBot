@@ -1,25 +1,49 @@
 import os
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import httpx
 import google.generativeai as genai
 from dotenv import load_dotenv
 from uuid import uuid4
 import asyncio
 import random
-from typing import Optional
+from typing import Optional, Any, Dict, List
+
+# Import all routers
+from lf_assist.app.api import router as lf_assist_router, process_lf_chat, clear_conversation
+from new.api import router as doc_assist_router, process_pdf_question
+from src.api import router as db_assist_router, process_db_query
+from viz_assist.api import router as viz_assist_router, process_viz_query, VizChatbotService
 
 load_dotenv()
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
-# Backend URLs
-LF_ASSIST_URL = os.getenv("LF_ASSIST_URL", "http://127.0.0.1:8002")
-DOC_ASSIST_URL = os.getenv("DOC_ASSIST_URL", "http://127.0.0.1:8003")
-DB_ASSIST_URL = os.getenv("DB_ASSIST_URL", "http://127.0.0.1:8001")
+# --- Lifespan Event Handler ---
 
-app = FastAPI(title="Unified Chatbot Router")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Initialize services on startup"""
+    # Startup: Initialize visualization chatbot service
+    print("🚀 Initializing Visualization Chatbot Service...")
+    viz_service = VizChatbotService.get_instance()
+    viz_service.initialize()
+    print("✅ All services initialized")
+    
+    yield
+    
+    # Shutdown
+    print("👋 Shutting down Unified Chatbot API")
 
+# Create app with lifespan
+app = FastAPI(
+    title="Unified Chatbot Router",
+    description="Unified API for LF Assist, Doc Assist, DB Assist, and Visualization Assist",
+    version="3.1",
+    lifespan=lifespan
+)
+
+# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -28,30 +52,32 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Include all backend routers
+app.include_router(lf_assist_router)
+app.include_router(doc_assist_router)
+app.include_router(db_assist_router)
+app.include_router(viz_assist_router)
+
+# --- Response Models ---
+
 class ChatResponse(BaseModel):
     backend: str
     answer: str
     session_id: str
-    tags: list[str] | None = None
+    tags: Optional[List[str]] = None
+    data: Optional[List[Dict[str, Any]]] = None
+    sql_query: Optional[str] = None
+    chart_analysis: Optional[Dict[str, Any]] = None
+
+# --- Classification Logic ---
 
 async def classify_query_with_gemini(
-    query: str, 
+    query: str,
     doc_uploaded: bool,
     max_retries: int = 3,
     base_delay: float = 1.0
 ) -> str:
-    """
-    Classifies the query with automatic retry on failure using exponential backoff.
-    
-    Args:
-        query: User's query text
-        doc_uploaded: Whether a document was uploaded
-        max_retries: Maximum number of retry attempts (default: 3)
-        base_delay: Base delay in seconds for exponential backoff (default: 1.0)
-    
-    Returns:
-        Classification category string
-    """
+    """Classifies the query with automatic retry - now includes visualization category"""
     prompt = f"""
     You are an intent classifier for a corporate lending company's chatbot system.
 
@@ -59,6 +85,7 @@ async def classify_query_with_gemini(
     - Answer questions about the company's lending policies, procedures, and services
     - Help users understand uploaded loan documents
     - Provide loan status and database information
+    - Create visualizations and charts from database data
 
     Classify the user's query into EXACTLY ONE category:
 
@@ -71,36 +98,42 @@ async def classify_query_with_gemini(
     2. **document q&a** 
        - Questions specifically about an uploaded document's content
        - ONLY choose this if document IS uploaded
-       Examples: "What is the interest rate in this document?", "Summarize this contract","What is the date of birth?"
+       Examples: "What is the interest rate in this document?", "Summarize this contract"
 
     3. **database**
-       - Queries about specific loan records, customer data, account balances
-       - Questions requiring database lookup
-       Examples: "What are the number of loans onboarded in last 5 months", "Show loan ID 12345", "How many borrowers have loan amount greater tHAN 20000"
+       - Simple queries about specific loan records, customer data, account balances
+       - Questions requiring database lookup WITHOUT visualization
+       - Requests for raw data or specific records
+       Examples: "Show loan ID 12345", "What is the status of my loan?", "How many active loans?"
 
-    4. **out_of_scope**
-       - General chitchat or greetings (e.g., "hello", "how are you", "good morning")
+    4. **visualization**
+       - Queries that request charts, graphs, or visual representations of data
+       - Analytical questions requiring data aggregation and visualization
+       - Trend analysis, comparisons, or distribution questions
+       - Any question with keywords like: chart, graph, plot, visualize, show trend, compare, distribution
+       Examples: "Show me a chart of loan amounts", "Plot monthly loan trends", "Visualize loan distribution by state", 
+                 "Compare interest rates across products", "Graph the number of loans per month"
+
+    5. **out_of_scope**
+       - General chitchat or greetings (e.g., "hello", "how are you")
        - Questions completely unrelated to lending/finance
        - Personal questions about the AI itself
-       - Requests for general knowledge, weather, news, entertainment
-       Examples: "What's the weather today?", "Tell me a joke", "Who won the game?", "Write me a poem"
+       Examples: "What's the weather today?", "Tell me a joke"
 
     Document uploaded: {str(doc_uploaded).lower()}
     User query: "{query}"
 
     IMPORTANT RULES:
+    - Keywords like "chart", "graph", "plot", "visualize", "trend", "compare" → visualization
+    - Simple data queries without visualization keywords → database
     - Greetings and pleasantries → out_of_scope
-    - Questions unrelated to lending/finance → out_of_scope
     - If document uploaded AND question about the document → document q&a
-    - Loan/database specific queries → database
     - Company/policy questions → company knowledge
 
-    Respond with EXACTLY one of: company knowledge, document q&a, database, out_of_scope
+    Respond with EXACTLY one of: company knowledge, document q&a, database, visualization, out_of_scope
     """
     
     model = genai.GenerativeModel('models/gemini-2.5-flash')
-    
-    last_exception = None
     
     for attempt in range(max_retries + 1):
         try:
@@ -110,7 +143,9 @@ async def classify_query_with_gemini(
             category = response.text.strip().lower()
             
             # Parse response
-            if "out" in category or "scope" in category:
+            if "visualization" in category or "visualize" in category:
+                return "visualization"
+            elif "out" in category or "scope" in category:
                 return "out_of_scope"
             elif "document" in category:
                 return "document q&a"
@@ -119,38 +154,28 @@ async def classify_query_with_gemini(
             elif "company" in category or "knowledge" in category:
                 return "company knowledge"
             
-            # If we got a response but couldn't parse it, treat as unknown
             print(f"⚠️ Unrecognized category: {category}")
             return "out_of_scope"
             
         except Exception as e:
-            last_exception = e
             print(f"⚠️ Gemini classification error (attempt {attempt + 1}/{max_retries + 1}): {e}")
             
-            # If this was the last attempt, fall back
             if attempt == max_retries:
                 print(f"❌ Max retries reached. Using fallback classification.")
                 break
             
-            # Calculate exponential backoff delay with jitter
-            delay = min(base_delay * (2 ** attempt), 10.0)  # Cap at 10 seconds
-            jitter = random.uniform(0, 0.5)  # Add random jitter
+            delay = min(base_delay * (2 ** attempt), 10.0)
+            jitter = random.uniform(0, 0.5)
             total_delay = delay + jitter
             
             print(f"⏳ Retrying in {total_delay:.2f} seconds...")
             await asyncio.sleep(total_delay)
     
-    # Fallback logic if all retries failed
-    print(f"⚠️ Falling back to default classification after {max_retries} retries")
-    return "out_of_scope"  # Conservative fallback to trigger deflection response
-
-
+    print(f"⚠️ Falling back to default classification")
+    return "out_of_scope"
 
 async def generate_deflection_response(query: str) -> str:
-    """
-    Generates a polite, contextual deflection response for out-of-scope queries.
-    Redirects users to the chatbot's purpose without saying "no".
-    """
+    """Generates a polite deflection response for out-of-scope queries"""
     prompt = f"""
     You are a helpful assistant for a corporate lending company chatbot.
 
@@ -160,21 +185,13 @@ async def generate_deflection_response(query: str) -> str:
     - Answer questions about lending policies, loan products, and procedures
     - Help with uploaded loan documents
     - Provide loan status and account information
+    - Create data visualizations and charts
 
     Generate a BRIEF, POLITE response (2-3 sentences max) that:
     1. Acknowledges their question warmly
     2. Gently redirects them to what you CAN help with
     3. NEVER says "no", "can't", "unable", or "not allowed"
-    4. Sounds natural and friendly, not robotic
-
-    Examples of GOOD responses:
-    - "That's an interesting question! I'm here to help you with loan applications, policies, and account information. Is there anything related to our lending services I can assist you with?"
-    - "I appreciate you reaching out! My expertise is in helping customers with loan queries, document reviews, and account details. What can I help you explore about our lending services today?"
-    
-    Examples of BAD responses:
-    - "I cannot answer that question." ❌
-    - "That's outside my scope." ❌
-    - "I'm not allowed to discuss that." ❌
+    4. Sounds natural and friendly
 
     Generate your polite deflection response now:
     """
@@ -186,84 +203,13 @@ async def generate_deflection_response(query: str) -> str:
         return response.text.strip()
     except Exception as e:
         print(f"⚠️ Error generating deflection: {e}")
-        # Fallback response
         return (
             "I'd love to help you with that! My specialty is assisting with loan applications, "
-            "policies, document reviews, and account information. What can I help you with "
-            "regarding our lending services today?"
+            "policies, document reviews, account information, and data visualizations. "
+            "What can I help you with regarding our lending services today?"
         )
 
-
-async def call_lf_assist(query: str, session_id: str) -> dict:
-    """
-    Call LF Assist with session management.
-    """
-    async with httpx.AsyncClient() as client:
-        try:
-            resp = await client.post(
-                f"{LF_ASSIST_URL}/chat",
-                json={"query": query, "session_id": session_id},
-                timeout=30.0
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            return {
-                "answer": data.get("answer", "No answer from LF Assist."),
-                "tags": data.get("tags", []),
-                "session_id": data.get("session_id", session_id)
-            }
-        except Exception as e:
-            print(f"❌ LF Assist Error: {e}")
-            return {"answer": f"LF Assist error: {str(e)}", "tags": [], "session_id": session_id}
-
-
-async def call_doc_assist(query: str, file: UploadFile) -> str:
-    """
-    Call Doc Assist with multipart form data.
-    """
-    try:
-        await file.seek(0)
-        file_content = await file.read()
-        
-        async with httpx.AsyncClient() as client:
-            files = {
-                "question": (None, query),
-                "file": (file.filename, file_content, file.content_type or 'application/pdf')
-            }
-            
-            resp = await client.post(
-                f"{DOC_ASSIST_URL}/ask/",
-                files=files,
-                timeout=60.0
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            return data.get("answer", "No answer from Doc Assist.")
-            
-    except Exception as e:
-        print(f"❌ Doc Assist Error: {e}")
-        return f"Doc Assist error: {str(e)}"
-
-
-async def call_db_assist(query: str) -> str:
-    """
-    Call DB Assist with JSON payload.
-    """
-    async with httpx.AsyncClient() as client:
-        try:
-            resp = await client.post(
-                f"{DB_ASSIST_URL}/api/chat",
-                json={"prompt": query},
-                timeout=30.0
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            return data.get("response", "No response from DB Assist.")
-            
-        except Exception as e:
-            print(f"❌ DB Assist Error: {e}")
-            return f"DB Assist error: {str(e)}"
-
+# --- Main Unified Chat Endpoint ---
 
 @app.post("/chat", response_model=ChatResponse)
 async def unified_chat(
@@ -272,13 +218,7 @@ async def unified_chat(
     file: UploadFile | None = File(default=None),
 ):
     """
-    Unified chat endpoint with intelligent scope detection and polite deflection.
-    
-    Handles four types of queries:
-    1. Company knowledge - Routes to LF Assist
-    2. Document Q&A - Routes to Doc Assist
-    3. Database queries - Routes to DB Assist
-    4. Out-of-scope - Generates polite deflection response
+    Unified chat endpoint with intelligent routing to 4 backends + visualization support.
     """
     
     # Generate or use existing session_id
@@ -295,7 +235,7 @@ async def unified_chat(
     category = await classify_query_with_gemini(message, doc_uploaded)
     print(f"🎯 Category: {category}")
     
-    # Step 2: Handle out-of-scope queries with deflection
+    # Step 2: Handle out-of-scope queries
     if category == "out_of_scope":
         print("🚫 Out of scope - generating deflection response")
         answer = await generate_deflection_response(message)
@@ -311,36 +251,55 @@ async def unified_chat(
         print("⚠️ Document Q&A without file - fallback to company knowledge")
         category = "company knowledge"
 
-    # Step 4: Route to appropriate backend
+    # Step 4: Route to appropriate backend (direct function calls)
     answer = ""
     backend = ""
     tags = []
+    data = None
+    sql_query = None
+    chart_analysis = None
 
     if category == "company knowledge":
         print("→ Routing to LF Assist")
-        result = await call_lf_assist(message, session_id)
-        answer = result["answer"]
-        tags = result.get("tags", [])
-        session_id = result.get("session_id", session_id)
+        result = await process_lf_chat(message, session_id)
+        answer = result.answer
+        tags = result.tags
         backend = "lf_assist"
         
     elif category == "document q&a":
         print("→ Routing to Doc Assist")
-        answer = await call_doc_assist(message, file)
+        file_content = await file.read()
+        answer = await process_pdf_question(message, file_content, file.filename)
         backend = "doc_assist"
         
     elif category == "database":
         print("→ Routing to DB Assist")
-        answer = await call_db_assist(message)
+        result = await process_db_query(message)
+        answer = result["response"]
         backend = "db_assist"
+    
+    elif category == "visualization":
+        print("→ Routing to Visualization Assist")
+        result = await process_viz_query(message, session_id)
+        
+        if result.error:
+            answer = f"Visualization Error: {result.error}"
+        else:
+            answer = f"Query executed successfully. Retrieved {result.record_count} records."
+            if result.chart_analysis and result.chart_analysis.chartable:
+                answer += f" Chart type: {result.chart_analysis.auto_chart.type if result.chart_analysis.auto_chart else 'N/A'}"
+        
+        data = result.data
+        sql_query = result.sql_query
+        chart_analysis = result.chart_analysis.dict() if result.chart_analysis else None
+        backend = "viz_assist"
         
     else:
         # Fallback
         print("⚠️ Unknown category - fallback to LF Assist")
-        result = await call_lf_assist(message, session_id)
-        answer = result["answer"]
-        tags = result.get("tags", [])
-        session_id = result.get("session_id", session_id)
+        result = await process_lf_chat(message, session_id)
+        answer = result.answer
+        tags = result.tags
         backend = "lf_assist"
 
     print(f"✅ Response from {backend}: {answer[:100]}...")
@@ -349,59 +308,63 @@ async def unified_chat(
         backend=backend,
         answer=answer,
         session_id=session_id,
-        tags=tags if tags else None
+        tags=tags if tags else None,
+        data=data,
+        sql_query=sql_query,
+        chart_analysis=chart_analysis
     )
 
+# --- Utility Endpoints ---
 
 @app.post("/chat/clear/{session_id}")
 async def clear_session(session_id: str):
-    """Clear conversation history for LF Assist session."""
-    async with httpx.AsyncClient() as client:
-        try:
-            resp = await client.post(
-                f"{LF_ASSIST_URL}/chat/clear",
-                params={"session_id": session_id},
-                timeout=10.0
-            )
-            resp.raise_for_status()
-            print(f"🗑️ Cleared session: {session_id}")
-            return {"message": f"Session {session_id} cleared", "success": True}
-        except Exception as e:
-            print(f"❌ Error clearing session: {e}")
-            return {"message": f"Error: {str(e)}", "success": False}
-
+    """Clear conversation history for LF Assist session"""
+    try:
+        clear_conversation(session_id)
+        print(f"🗑️ Cleared session: {session_id}")
+        return {"message": f"Session {session_id} cleared", "success": True}
+    except Exception as e:
+        print(f"❌ Error clearing session: {e}")
+        return {"message": f"Error: {str(e)}", "success": False}
 
 @app.get("/health")
 async def health_check():
-    """Check health of all backend services."""
-    health_status = {}
+    """Check health of all backend services"""
+    viz_service = VizChatbotService.get_instance()
     
-    async with httpx.AsyncClient() as client:
-        # Check LF Assist
-        try:
-            await client.get(f"{LF_ASSIST_URL}/chat/sessions", timeout=5.0)
-            health_status["lf_assist"] = "healthy"
-        except:
-            health_status["lf_assist"] = "unhealthy"
-        
-        # Check Doc Assist
-        try:
-            await client.get(f"{DOC_ASSIST_URL}/", timeout=5.0)
-            health_status["doc_assist"] = "healthy"
-        except:
-            health_status["doc_assist"] = "unhealthy"
-        
-        health_status["db_assist"] = "unknown"
-        health_status["scope_guard"] = "healthy"
-    
-    return {"status": health_status}
-
+    return {
+        "status": {
+            "lf_assist": "healthy",
+            "doc_assist": "healthy",
+            "db_assist": "healthy",
+            "viz_assist": "healthy" if viz_service.is_ready() else "initializing",
+            "scope_guard": "healthy"
+        },
+        "message": "All backends integrated internally"
+    }
 
 @app.get("/")
 def root():
     return {
         "service": "Unified Chatbot Router",
-        "version": "2.0",
-        "backends": ["lf_assist", "doc_assist", "db_assist", "scope_guard"],
-        "features": ["session_management", "scope_detection", "polite_deflection"]
+        "version": "3.1",
+        "backends": ["lf_assist", "doc_assist", "db_assist", "viz_assist", "scope_guard"],
+        "features": [
+            "session_management",
+            "scope_detection",
+            "polite_deflection",
+            "integrated_backends",
+            "visualization_support"
+        ],
+        "endpoints": {
+            "unified": "/chat",
+            "lf_assist": "/lf-assist/chat",
+            "doc_assist": "/doc-assist/ask",
+            "db_assist": "/db-assist/chat",
+            "viz_assist": "/viz-assist/chat"
+        }
     }
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("unified_api:app", host="0.0.0.0", port=8000, reload=True)

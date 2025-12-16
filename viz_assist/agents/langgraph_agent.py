@@ -2,6 +2,7 @@ import os
 import json
 import logging
 from typing import TypedDict, Annotated, List, Dict, Any
+from datetime import datetime
 
 from langgraph.graph import StateGraph, END
 from langgraph.graph.message import add_messages
@@ -10,7 +11,7 @@ from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
 
-# Assumed import from your project structure (the class we modified previously)
+# Assumed import from your project structure
 from .llm_model_gemini import SQLQueryGenerator
 
 # Configure logging
@@ -22,7 +23,6 @@ class SQLAgentState(TypedDict):
     user_question: str
     messages: Annotated[List[BaseMessage], add_messages]
     schema_info: List[Dict[str, Any]]
-    # table_info removed as requested
     raw_sql_query: str
     cleaned_sql_query: str
     validation_result: Dict[str, Any]
@@ -37,11 +37,12 @@ class SQLAgentState(TypedDict):
 class SQLLangGraphAgentGemini:
     def __init__(self, vector_store, join_details, schema_info, query_runner=None):
         self.vector_store = vector_store
-        # This uses the modified SQLQueryGenerator from the previous step
         self.sql_generator = SQLQueryGenerator()
         self.join_details = join_details
         self.schema_info = schema_info 
         self.query_runner = query_runner
+        self._current_thread_id = "default"  # Store thread_id for logging
+        
         self.db_structure = """
         DATABASE STRUCTURE (Schema -> Tables):
         Schema : fl_lms
@@ -54,8 +55,7 @@ class SQLLangGraphAgentGemini:
         contains tables : customerdataproductfinal
         """
         
-        # Initialize the LLM for helper tasks (Rewriting, Chart Analysis)
-        # We ensure it uses the same environment variable and modern params
+        # Initialize the LLM for helper tasks
         self.llm = ChatGoogleGenerativeAI(
             model="gemini-2.5-flash",
             temperature=0.1,
@@ -167,7 +167,7 @@ class SQLLangGraphAgentGemini:
             }
 
     def _schema_search_node(self, state: SQLAgentState) -> Dict[str, Any]:
-        """Search ONLY for relevant schema information (Table info logic removed)"""
+        """Search ONLY for relevant schema information"""
         try:
             full_query = f"User Question: {state['user_question']}"
 
@@ -186,8 +186,6 @@ class SQLLangGraphAgentGemini:
                     "score": float(res[1]),
                     "metadata": res[0].metadata if hasattr(res[0], 'metadata') else {}
                 })
-            
-            # Removed table_info processing
             
             return {
                 "schema_info": schema_info,
@@ -216,12 +214,11 @@ class SQLLangGraphAgentGemini:
             
             full_query = f"{chat_history_text}\n\nUser Question: {state['user_question']}" if chat_history_text else f"User Question: {state['user_question']}"
 
-            # 1. Get detailed column definitions from vector search (dynamic)
+            # Get detailed column definitions
             detailed_columns = [item["content"] for item in state["schema_info"]]
             detailed_columns_str = "\n".join(detailed_columns)
             
-            # 2. Combine the Global Map + Detailed Columns
-            # This ensures the LLM knows the Schema Name (from map) AND Column Names (from vector store)
+            # Combine the Global Map + Detailed Columns
             combined_schema_context = f"""
             {self.db_structure}
 
@@ -229,10 +226,10 @@ class SQLLangGraphAgentGemini:
             {detailed_columns_str}
             """
             
-            # 3. Pass the COMBINED string to the generator
+            # Generate SQL
             raw_query = self.sql_generator.generate_sql_query(
                 user_request=full_query,
-                schema_info=combined_schema_context,  # <--- Pass the combined string here
+                schema_info=combined_schema_context,
                 join_details=self.join_details,
                 database_type="Redshift"
             )
@@ -262,7 +259,6 @@ class SQLLangGraphAgentGemini:
                     "current_step": "query_validation_failed"
                 }
 
-            # Assuming these utilities exist in your project
             from tools.extract_query import extract_sql_query
             from db.safe_query_analyzer import _safe_sql
             
@@ -289,7 +285,7 @@ class SQLLangGraphAgentGemini:
             }
     
     def _query_execution_node(self, state: SQLAgentState) -> Dict[str, Any]:
-        """Execute the validated SQL query and return JSON formatted result"""
+        """Execute the validated SQL query and LOG to database"""
         try:
             if not self.query_runner:
                 return {
@@ -299,25 +295,30 @@ class SQLLangGraphAgentGemini:
                     "is_complete": True
                 }
             
+            # Execute the query
             result = self.query_runner.run(state["cleaned_sql_query"])
             
             execution_data_json = ""
             execution_result = ""
+            row_count = 0
             
             if result is not None:
                 try:
-                    # Handle Pandas DataFrame (expected from query_runner)
+                    # Handle Pandas DataFrame
                     if hasattr(result, 'to_dict'):
                         records = result.to_dict(orient='records')
                         execution_data_json = json.dumps(records, default=str)
-                        execution_result = f"Query returned {len(result)} rows"
+                        row_count = len(result)
+                        execution_result = f"Query returned {row_count} rows"
                     # Handle list of dicts
                     elif isinstance(result, list):
                         execution_data_json = json.dumps(result, default=str)
-                        execution_result = f"Query returned {len(result)} rows"
+                        row_count = len(result)
+                        execution_result = f"Query returned {row_count} rows"
                     # Handle single dict
                     elif isinstance(result, dict):
                         execution_data_json = json.dumps([result], default=str)
+                        row_count = 1
                         execution_result = "Query returned 1 row"
                     else:
                         raise ValueError("Query runner must return DataFrame, list[dict], or dict")
@@ -329,15 +330,34 @@ class SQLLangGraphAgentGemini:
                 execution_data_json = json.dumps([])
                 execution_result = "No data returned"
             
+            # LOG SUCCESSFUL QUERY EXECUTION TO DATABASE
+            self.query_runner.log_query(
+                user_question=state["user_question"],
+                generated_sql=state["cleaned_sql_query"],
+                thread_id=self._current_thread_id,
+                execution_status="success",
+                row_count=row_count
+            )
+            
             return {
                 "execution_result": execution_result,
                 "execution_data_json": execution_data_json,
                 "current_step": "execution_complete",
-                "is_complete": False, # Continue to chart analysis
+                "is_complete": False,  # Continue to chart analysis
                 "error_message": ""
             }
             
         except Exception as e:
+            # LOG FAILED QUERY EXECUTION TO DATABASE
+            if self.query_runner and state.get("cleaned_sql_query"):
+                self.query_runner.log_query(
+                    user_question=state["user_question"],
+                    generated_sql=state["cleaned_sql_query"],
+                    thread_id=self._current_thread_id,
+                    execution_status=f"failed: {str(e)[:200]}",
+                    row_count=0
+                )
+            
             return {
                 "error_message": f"Query execution failed: {str(e)}",
                 "current_step": "execution_failed",
@@ -375,43 +395,42 @@ class SQLLangGraphAgentGemini:
             
             chart_analysis_prompt = f"""You are a data visualization expert. Analyze if this data can be visualized.
 
-User Question:
-{question}
+                                        User Question:
+                                        {question}
 
-Data Sample:
-{data_sample}
+                                        Data Sample:
+                                        {data_sample}
 
-Respond with ONLY valid JSON in this exact structure (no markdown, no code blocks):
-{{{{
-  "chartable": true,
-  "reasoning": "Explanation",
-  "suggested_charts": [
-    {{{{
-      "type": "bar",
-      "title": "Chart Title",
-      "x_axis": "column_name",
-      "y_axis": "column_name",
-      "reason": "Why this fits",
-      "confidence": 0.85
-    }}}}
-  ],
-  "auto_chart": {{{{
-    "type": "bar",
-    "title": "Best Chart",
-    "x_axis": "column_name",
-    "y_axis": "column_name",
-    "reason": "Why best"
-  }}}}
-}}}}"""
+                                        Respond with ONLY valid JSON in this exact structure (no markdown, no code blocks):
+                                        {{{{
+                                        "chartable": true,
+                                        "reasoning": "Explanation",
+                                        "suggested_charts": [
+                                            {{{{
+                                            "type": "bar",
+                                            "title": "Chart Title",
+                                            "x_axis": "column_name",
+                                            "y_axis": "column_name",
+                                            "reason": "Why this fits",
+                                            "confidence": 0.85
+                                            }}}}
+                                        ],
+                                        "auto_chart": {{{{
+                                            "type": "bar",
+                                            "title": "Best Chart",
+                                            "x_axis": "column_name",
+                                            "y_axis": "column_name",
+                                            "reason": "Why best"
+                                        }}}}
+                                        }}}}"""
 
-            # Invoke LLM directly without ChatPromptTemplate
+            # Invoke LLM
             chart_response_message = self.llm.invoke([HumanMessage(content=chart_analysis_prompt)])
             chart_response = chart_response_message.content.strip().replace('``````', '')
             
             try:
                 chart_analysis = json.loads(chart_response)
             except (json.JSONDecodeError, ValueError):
-                # Fallback if JSON fails
                 chart_analysis = {
                     'chartable': False,
                     'suggested_charts': [],
@@ -477,12 +496,15 @@ Respond with ONLY valid JSON in this exact structure (no markdown, no code block
         return "continue"
     
     def process_query(self, user_question: str, thread_id: str = "default") -> Dict[str, Any]:
-        """Process a user query"""
+        """Process a user query through the complete workflow"""
+        
+        #  Store thread_id for logging purposes
+        self._current_thread_id = thread_id
+        
         initial_state = SQLAgentState(
             user_question=user_question,
             messages=[HumanMessage(content=user_question)],
             schema_info=[],
-            # table_info removed
             raw_sql_query="",
             cleaned_sql_query="",
             validation_result={},

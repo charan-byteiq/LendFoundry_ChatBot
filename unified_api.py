@@ -25,15 +25,15 @@ genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 async def lifespan(app: FastAPI):
     """Initialize services on startup"""
     # Startup: Initialize visualization chatbot service
-    print("🚀 Initializing Visualization Chatbot Service...")
+    print(" Initializing Visualization Chatbot Service...")
     viz_service = VizChatbotService.get_instance()
     viz_service.initialize()
-    print("✅ All services initialized")
+    print(" All services initialized")
     
     yield
     
     # Shutdown
-    print("👋 Shutting down Unified Chatbot API")
+    print(" Shutting down Unified Chatbot API")
 
 # Create app with lifespan
 app = FastAPI(
@@ -58,7 +58,6 @@ app.include_router(doc_assist_router)
 app.include_router(db_assist_router)
 app.include_router(viz_assist_router)
 
-# --- Response Models ---
 
 class ChatResponse(BaseModel):
     backend: str
@@ -69,7 +68,7 @@ class ChatResponse(BaseModel):
     sql_query: Optional[str] = None
     chart_analysis: Optional[Dict[str, Any]] = None
 
-# --- Classification Logic ---
+# Classification Logic 
 
 async def classify_query_with_gemini(
     query: str,
@@ -154,24 +153,24 @@ async def classify_query_with_gemini(
             elif "company" in category or "knowledge" in category:
                 return "company knowledge"
             
-            print(f"⚠️ Unrecognized category: {category}")
+            print(f" Unrecognized category: {category}")
             return "out_of_scope"
             
         except Exception as e:
-            print(f"⚠️ Gemini classification error (attempt {attempt + 1}/{max_retries + 1}): {e}")
+            print(f" Gemini classification error (attempt {attempt + 1}/{max_retries + 1}): {e}")
             
             if attempt == max_retries:
-                print(f"❌ Max retries reached. Using fallback classification.")
+                print(f" Max retries reached. Using fallback classification.")
                 break
             
             delay = min(base_delay * (2 ** attempt), 10.0)
             jitter = random.uniform(0, 0.5)
             total_delay = delay + jitter
             
-            print(f"⏳ Retrying in {total_delay:.2f} seconds...")
+            print(f" Retrying in {total_delay:.2f} seconds...")
             await asyncio.sleep(total_delay)
     
-    print(f"⚠️ Falling back to default classification")
+    print(f" Falling back to default classification")
     return "out_of_scope"
 
 async def generate_deflection_response(query: str) -> str:
@@ -202,7 +201,7 @@ async def generate_deflection_response(query: str) -> str:
         response = await model.generate_content_async(prompt)
         return response.text.strip()
     except Exception as e:
-        print(f"⚠️ Error generating deflection: {e}")
+        print(f" Error generating deflection: {e}")
         return (
             "I'd love to help you with that! My specialty is assisting with loan applications, "
             "policies, document reviews, account information, and data visualizations. "
@@ -224,20 +223,20 @@ async def unified_chat(
     # Generate or use existing session_id
     if not session_id:
         session_id = str(uuid4())
-        print(f"🆕 New session: {session_id}")
+        print(f" New session: {session_id}")
     else:
-        print(f"🔄 Continuing session: {session_id}")
+        print(f" Continuing session: {session_id}")
     
     doc_uploaded = file is not None
-    print(f"📩 Query: '{message}' | Doc: {doc_uploaded}")
+    print(f" Query: '{message}' | Doc: {doc_uploaded}")
 
     # Step 1: Classify the query
     category = await classify_query_with_gemini(message, doc_uploaded)
-    print(f"🎯 Category: {category}")
+    print(f" Category: {category}")
     
     # Step 2: Handle out-of-scope queries
     if category == "out_of_scope":
-        print("🚫 Out of scope - generating deflection response")
+        print(" Out of scope - generating deflection response")
         answer = await generate_deflection_response(message)
         return ChatResponse(
             backend="scope_guard",
@@ -248,8 +247,8 @@ async def unified_chat(
     
     # Step 3: Handle edge cases
     if category == "document q&a" and not doc_uploaded:
-        print("⚠️ Document Q&A without file - fallback to company knowledge")
-        category = "company knowledge"
+        print(" Document Q&A without file - fallback to llM")
+        category = "out_of_scope"
 
     # Step 4: Route to appropriate backend (direct function calls)
     answer = ""
@@ -296,13 +295,13 @@ async def unified_chat(
         
     else:
         # Fallback
-        print("⚠️ Unknown category - fallback to LF Assist")
+        print(" Unknown category - fallback to LF Assist")
         result = await process_lf_chat(message, session_id)
         answer = result.answer
         tags = result.tags
         backend = "lf_assist"
 
-    print(f"✅ Response from {backend}: {answer[:100]}...")
+    print(f" Response from {backend}: {answer[:100]}...")
     
     return ChatResponse(
         backend=backend,
@@ -321,10 +320,10 @@ async def clear_session(session_id: str):
     """Clear conversation history for LF Assist session"""
     try:
         clear_conversation(session_id)
-        print(f"🗑️ Cleared session: {session_id}")
+        print(f" Cleared session: {session_id}")
         return {"message": f"Session {session_id} cleared", "success": True}
     except Exception as e:
-        print(f"❌ Error clearing session: {e}")
+        print(f" Error clearing session: {e}")
         return {"message": f"Error: {str(e)}", "success": False}
 
 @app.get("/health")

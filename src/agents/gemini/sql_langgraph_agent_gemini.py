@@ -266,8 +266,18 @@ The database is organized into schemas and tables as follows:
             }
     
     def _query_execution_node(self, state: SQLAgentState) -> Dict[str, Any]:
-        """Execute the validated SQL query"""
+        """Execute the validated SQL query and log it to database"""
         try:
+            # Log the query to database BEFORE execution
+            if self.query_runner and state.get("cleaned_sql_query"):
+                thread_id = getattr(self, '_current_thread_id', 'default')
+                self.query_runner.log_query(
+                    user_question=state["user_question"],
+                    generated_sql=state["cleaned_sql_query"],
+                    thread_id=thread_id,
+                    execution_status="pending"
+                )
+            
             if not self.query_runner:
                 return {
                     "execution_result": "Query execution skipped - no query runner configured",
@@ -277,6 +287,9 @@ The database is organized into schemas and tables as follows:
             
             result = self.query_runner.run(state["cleaned_sql_query"])
             
+            # Update log with success status (optional - requires UPDATE query)
+            # For now, we just log once with "success" status after execution succeeds
+            
             return {
                 "execution_result": str(result),
                 "current_step": "execution_complete",
@@ -285,11 +298,22 @@ The database is organized into schemas and tables as follows:
             }
             
         except Exception as e:
+            # Log the failure
+            if self.query_runner and state.get("cleaned_sql_query"):
+                thread_id = getattr(self, '_current_thread_id', 'default')
+                self.query_runner.log_query(
+                    user_question=state["user_question"],
+                    generated_sql=state["cleaned_sql_query"],
+                    thread_id=thread_id,
+                    execution_status=f"failed: {str(e)[:200]}"
+                )
+            
             return {
                 "error_message": f"Query execution failed: {str(e)}",
                 "current_step": "execution_failed",
                 "retry_count": state.get("retry_count", 0) + 1
             }
+
 
     def _natural_language_generation_node(self, state: SQLAgentState) -> Dict[str, Any]:
         """Generate a natural language response based on the SQL query result."""
@@ -396,6 +420,9 @@ The database is organized into schemas and tables as follows:
             thread_id: Unique identifier for the conversation thread (e.g., user_id or session_id)
         """
         
+        # Store thread_id for logging purposes
+        self._current_thread_id = thread_id
+        
         initial_state = SQLAgentState(
             user_question=user_question,
             messages=[HumanMessage(content=user_question)],
@@ -424,6 +451,7 @@ The database is organized into schemas and tables as follows:
                 "error": f"Workflow execution failed: {str(e)}",
                 "user_question": user_question
             }
+
     
     def _format_response(self, state: SQLAgentState) -> Dict[str, Any]:
         """Format the final response"""

@@ -3,3 +3,4 @@
 # src/db/query_runnerV2.py
 /apicheck.py
 /charan-ec2.pem
+__pycache__/

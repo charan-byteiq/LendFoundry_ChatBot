@@ -13,10 +13,10 @@ if not api_key:
 
 genai.configure(api_key=api_key)
 
-# Create router instead of app
+
 router = APIRouter(prefix="/doc-assist", tags=["Doc Assist"])
 
-# Core logic extracted as callable function
+
 async def process_pdf_question(question: str, file_content: bytes, filename: str = "document.pdf") -> str:
     """
     Core Doc Assist logic - can be called directly from unified API

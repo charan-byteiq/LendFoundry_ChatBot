@@ -16,7 +16,7 @@ pydantic
 langchain-core
 langchain-qdrant
 langchain-postgres
-qdrant-client
+qdrant-client == 1.15.1
 pandas
 sentence-transformers
 dotenv

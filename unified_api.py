@@ -67,6 +67,8 @@ class ChatResponse(BaseModel):
     data: Optional[List[Dict[str, Any]]] = None
     sql_query: Optional[str] = None
     chart_analysis: Optional[Dict[str, Any]] = None
+    record_count: Optional[int] = None
+    error: Optional[str] = None
 
 # Classification Logic 
 
@@ -276,6 +278,10 @@ async def unified_chat(
         result = await process_db_query(message)
         answer = result["response"]
         backend = "db_assist"
+        if not result.get("success", True):
+             # If success is explicitly False, we can flag it, 
+             # though usually the error message is in 'answer'
+             pass
     
     elif category == "visualization":
         print("→ Routing to Visualization Assist")
@@ -310,7 +316,9 @@ async def unified_chat(
         tags=tags if tags else None,
         data=data,
         sql_query=sql_query,
-        chart_analysis=chart_analysis
+        chart_analysis=chart_analysis,
+        record_count=len(data) if data else None,
+        error=result.error if backend == "viz_assist" and hasattr(result, "error") else None
     )
 
 # --- Utility Endpoints ---

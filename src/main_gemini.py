@@ -8,7 +8,7 @@ from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 # Adjust imports to be relative to the 'src' directory
 from src.agents.gemini.sql_langgraph_agent_gemini import SQLLangGraphAgentGemini
 from src.db.vector_db_store import store_in_vector_db, get_vector_store
-from src.db.query_runnerV2 import RedshiftSQLTool
+from src.db.query_runner import RedshiftSQLTool
 
 # Import schema and document information
 from db.table_descriptions_semantic import documents, join_details, schema_info

@@ -4,24 +4,17 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
-import google.generativeai as genai
 
 # Adjust imports to be relative to the 'src' directory
 from src.agents.gemini.sql_langgraph_agent_gemini import SQLLangGraphAgentGemini
 from src.db.vector_db_store import store_in_vector_db, get_vector_store
 from src.db.query_runner import RedshiftSQLTool
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_google_genai import ChatGoogleGenerativeAI
 
 # Import schema and document information
 from db.table_descriptions_semantic import documents, join_details, schema_info
 
 # Load environment variables from .env file
 load_dotenv()
-
-# Configuration
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-genai.configure(api_key=GOOGLE_API_KEY)
 
 
 class Chatbot:
@@ -56,7 +49,7 @@ class Chatbot:
             print(f"Could not initialize Redshift query runner: {e}")
             self.query_runner = None
         
-        # Initialize the Gemini Agent (without memory parameter)
+        # Initialize the Gemini Agent
         if self.vector_store:
             try:
                 self.gemini_agent = SQLLangGraphAgentGemini(

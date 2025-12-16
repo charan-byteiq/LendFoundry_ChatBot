@@ -4,22 +4,16 @@ from langgraph.graph.message import add_messages
 from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
-import google.generativeai as genai
 from .llm_model_gemini import SQLQueryGenerator
 from langchain_core.prompts import ChatPromptTemplate
 import os
 
 
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-genai.configure(api_key=GOOGLE_API_KEY)
-
-
 class SQLAgentState(TypedDict):
     """State structure for the SQL agent workflow"""
     user_question: str
-    messages: Annotated[List[BaseMessage], add_messages]  # Changed from chat_history
-    schema_info: List[Dict[str, Any]]
-    table_info: str
+    messages: Annotated[List[BaseMessage], add_messages]
+    retrieved_schema_chunks: List[Dict[str, Any]]
     raw_sql_query: str
     cleaned_sql_query: str
     validation_result: Dict[str, Any]
@@ -34,31 +28,25 @@ class SQLAgentState(TypedDict):
 class SQLLangGraphAgentGemini:
     def __init__(self, vector_store, join_details, schema_info, query_runner=None):
         self.vector_store = vector_store
-        self.sql_generator = SQLQueryGenerator()
+        self.sql_generator = SQLQueryGenerator(model_name="gemini-2.5-flash")
         self.join_details = join_details
-        self.schema_info = schema_info 
+        self.db_structure = schema_info
         self.query_runner = query_runner
-        # Removed: self.memory parameter
         
-        # Initialize the LLM for any additional reasoning if needed
         self.llm = ChatGoogleGenerativeAI(
             model="gemini-2.5-flash",
             temperature=0.1,
-            max_tokens=2048
+            max_output_tokens=2048,
+            convert_system_message_to_human=True,
         )
         
-        # Add checkpointer for persistence
         self.checkpointer = MemorySaver()
-        
-        # Build the workflow graph
         self.workflow = self._build_workflow()
     
     def _build_workflow(self) -> StateGraph:
         """Build the LangGraph workflow"""
-        # Create the state graph
         workflow = StateGraph(SQLAgentState)
         
-        # Add nodes
         workflow.add_node("rewrite_question", self._rewrite_question_node)
         workflow.add_node("schema_search", self._schema_search_node)
         workflow.add_node("sql_generation", self._sql_generation_node)
@@ -67,10 +55,8 @@ class SQLLangGraphAgentGemini:
         workflow.add_node("natural_language_generation", self._natural_language_generation_node)
         workflow.add_node("error_handler", self._error_handler_node)
         
-        # Set entry point
         workflow.set_entry_point("rewrite_question")
         
-        # Add conditional edges
         workflow.add_conditional_edges(
             "rewrite_question",
             self._should_continue_after_rewrite,
@@ -121,22 +107,19 @@ class SQLLangGraphAgentGemini:
         workflow.add_edge("natural_language_generation", END)
         workflow.add_edge("error_handler", END)
         
-        # Compile with checkpointer for persistence
         return workflow.compile(checkpointer=self.checkpointer)
     
     def _rewrite_question_node(self, state: SQLAgentState) -> Dict[str, Any]:
         """Rewrite the user's question to be more specific based on chat history"""
         try:
-            # If there is no chat history (only current message), skip rewriting
             if len(state['messages']) <= 1:
                 return {
                     "user_question": state['user_question'],
                     "current_step": "question_rewriting_skipped"
                 }
 
-            # Format chat history from messages (exclude the current question)
             chat_history_messages = []
-            for msg in state['messages'][:-1]:  # Exclude last message (current question)
+            for msg in state['messages'][:-1]:
                 if isinstance(msg, HumanMessage):
                     chat_history_messages.append(f"User: {msg.content}")
                 elif isinstance(msg, AIMessage):
@@ -144,7 +127,6 @@ class SQLLangGraphAgentGemini:
             
             chat_history_text = "\n".join(chat_history_messages)
 
-            # LCEL implementation for question rewriting
             rewrite_prompt = ChatPromptTemplate.from_messages([
                 ("system", "[LendFoundry Question Rewriting] Given the following chat history and a follow-up question, rewrite the follow-up question to be a standalone question."),
                 ("human", "<chat_history>\n{chat_history}\n</chat_history>\n\n<follow_up_question>\n{question}\n</follow_up_question>\n\n<standalone_question>")
@@ -171,43 +153,22 @@ class SQLLangGraphAgentGemini:
             }
 
     def _schema_search_node(self, state: SQLAgentState) -> Dict[str, Any]:
-        """Search for relevant schema and table information"""
+        """Search for relevant schema information"""
         try:
-            # Combine user question with chat history for better context
-            full_query = f"User Question: {state['user_question']}"
+            full_query = state["user_question"]
 
-            # Search for schema information
-            schema_results = self.vector_store.similarity_search_with_score(
-                f"Which columns in the database are relevant to the following question: {full_query}", 
-                k=5
-            )
+            schema_results = self.vector_store.similarity_search_with_score(full_query, k=5)
             
-            # Search for table-specific information
-            table_results = self.vector_store.similarity_search_with_score(
-                f"Table structure and metadata for: {full_query}", 
-                k=3
-            )
-            
-            # Process schema information
-            schema_info = []
-            for res in schema_results:
-                schema_info.append({
-                    "content": res[0].page_content,
-                    "score": float(res[1]),
-                    "metadata": res[0].metadata if hasattr(res[0], 'metadata') else {}
+            retrieved = []
+            for doc, score in schema_results:
+                retrieved.append({
+                    "content": doc.page_content,
+                    "score": float(score),
+                    "metadata": getattr(doc, "metadata", {}) or {}
                 })
             
-            # Process table information (separate from schema)
-            table_info_list = []
-            for res in table_results:
-                table_info_list.append(res[0].page_content)
-            
-            # Join table info into a single string
-            table_info_str = "\n".join(table_info_list)
-            
             return {
-                "schema_info": schema_info,
-                "table_info": table_info_str,
+                "retrieved_schema_chunks": retrieved,
                 "current_step": "schema_search_complete",
                 "error_message": ""
             }
@@ -221,9 +182,8 @@ class SQLLangGraphAgentGemini:
     def _sql_generation_node(self, state: SQLAgentState) -> Dict[str, Any]:
         """Generate SQL query based on schema information"""
         try:
-            # Format chat history from messages for context
             chat_history_messages = []
-            for msg in state['messages'][:-1]:  # Exclude current question
+            for msg in state['messages'][:-1]:
                 if isinstance(msg, HumanMessage):
                     chat_history_messages.append(f"User: {msg.content}")
                 elif isinstance(msg, AIMessage):
@@ -231,36 +191,43 @@ class SQLLangGraphAgentGemini:
             
             chat_history_text = "\n".join(chat_history_messages)
             
-            # Combine user question with chat history for better context
-            full_query = f"{chat_history_text}\n\nUser Question: {state['user_question']}" if chat_history_text else f"User Question: {state['user_question']}"
+            full_user_request = (
+                f"{chat_history_text}\n\nUser Question: {state['user_question']}"
+                if chat_history_text else state["user_question"]
+            )
 
-            # Convert schema info to string format
-            schema_content = [
-                item["content"]
-                for item in state["schema_info"]
-            ]
-            schema_info_str = "\n".join(schema_content)
+            retrieved_context = "\n".join(
+                c["content"] for c in state.get("retrieved_schema_chunks", []) if c.get("content")
+            ).strip()
+
+            db_structure_text = str(self.db_structure or "")
+
+            schema_info_for_llm = f"""
+[RETRIEVED_SCHEMA_CHUNKS]
+{retrieved_context}
+
+[DATABASE_STRUCTURE_NOTE]
+The database is organized into schemas and tables as follows:
+{db_structure_text}
+""".strip()
             
-            # Use schema_info for both parameters if table_info is not separately defined
             raw_query = self.sql_generator.generate_sql_query(
-                user_request=full_query,
-                table_info=schema_info_str,
-                schema_info=self.schema_info,
-                join_details=self.join_details,
-                database_type="PostgreSQL",
-                max_tokens=1000
+                user_request=full_user_request,
+                schema_info=schema_info_for_llm,
+                join_details=str(self.join_details or ""),
+                database_type="Redshift",
             )
             
             return {
-                "raw_sql_query": raw_query,
+                "raw_sql_query": raw_query or "",
                 "current_step": "sql_generation_complete",
-                "error_message": ""
+                "error_message": "" if raw_query else "SQL generation returned no query.",
             }
             
         except Exception as e:
             return {
                 "error_message": f"SQL generation failed: {str(e)}",
-                "current_step": "sql_generation_failed"
+                "current_step": "sql_generation_failed",
             }
     
     def _query_validation_node(self, state: SQLAgentState) -> Dict[str, Any]:
@@ -275,10 +242,8 @@ class SQLLangGraphAgentGemini:
             from ...tools.extract_query import extract_sql_query
             from ...db.safe_query_analyzer import _safe_sql
             
-            # Extract clean SQL
             cleaned_query = extract_sql_query(state["raw_sql_query"], strip_comments=True)
             
-            # Check safety
             safety_result = _safe_sql(cleaned_query)
             
             validation_result = {
@@ -315,7 +280,7 @@ class SQLLangGraphAgentGemini:
             return {
                 "execution_result": str(result),
                 "current_step": "execution_complete",
-                "is_complete": False,  # Continue to natural language generation
+                "is_complete": False,
                 "error_message": ""
             }
             
@@ -329,17 +294,16 @@ class SQLLangGraphAgentGemini:
     def _natural_language_generation_node(self, state: SQLAgentState) -> Dict[str, Any]:
         """Generate a natural language response based on the SQL query result."""
         try:
-            # Check for execution errors
             if state.get("error_message") and "Query execution failed" in state.get("error_message", ""):
                 error_msg = state["error_message"]
                 return {
                     "messages": [AIMessage(content=error_msg)],
                     "execution_result": error_msg,
+                    "natural_language_response": error_msg,
                     "current_step": "error_forwarded",
                     "is_complete": True
                 }
             
-            # LCEL implementation for natural language generation
             nl_prompt = ChatPromptTemplate.from_messages([
                 ("system", "[LendFoundry NL Generation] You are a chatbot which is getting the response from a LLM. A user asked the following question:"),
                 ("human", "<user_question>\n{question}\n</user_question>\n\nYou have already executed a SQL query and retrieved the following data:\n<data>\n{data}\n</data>\n\nPlease provide a clear and concise answer to the user's question based on the data.\nAnswer in a natural, conversational tone.\nDo not expose the columns which were used in the query.\nDo not give any sensitive information.")
@@ -349,15 +313,15 @@ class SQLLangGraphAgentGemini:
             
             nl_response_message = nl_chain.invoke({
                 "question": state["user_question"],
-                "data": state["execution_result"]
+                "data": state.get("execution_result", "")
             })
 
-            natural_language_response = nl_response_message.content.strip()
+            natural_language_response = (nl_response_message.content or "").strip()
             
-            # Add AI response to messages
             return {
                 "messages": [AIMessage(content=natural_language_response)],
-                "execution_result": natural_language_response,
+                "natural_language_response": natural_language_response,
+                "execution_result": state.get("execution_result", ""),
                 "current_step": "natural_language_generation_complete",
                 "is_complete": True
             }
@@ -367,6 +331,7 @@ class SQLLangGraphAgentGemini:
             return {
                 "messages": [AIMessage(content=error_msg)],
                 "error_message": error_msg,
+                "natural_language_response": error_msg,
                 "current_step": "natural_language_generation_failed",
                 "is_complete": True
             }
@@ -379,11 +344,11 @@ class SQLLangGraphAgentGemini:
         return {
             "messages": [AIMessage(content=error_msg)],
             "execution_result": error_msg,
+            "natural_language_response": error_msg,
             "current_step": "error_handled",
             "is_complete": True
         }
     
-    # Conditional edge functions
     def _should_continue_after_rewrite(self, state: SQLAgentState) -> str:
         """Determine next step after question rewriting"""
         if state.get("error_message"):
@@ -409,11 +374,9 @@ class SQLLangGraphAgentGemini:
         
         validation_result = state.get("validation_result", {})
         
-        # If query is safe and we have a query runner, execute it
         if validation_result.get("is_safe", False) and self.query_runner:
             return "execute"
         
-        # Otherwise, complete the workflow
         return "complete"
     
     def _should_retry_after_execution(self, state: SQLAgentState) -> str:
@@ -433,12 +396,10 @@ class SQLLangGraphAgentGemini:
             thread_id: Unique identifier for the conversation thread (e.g., user_id or session_id)
         """
         
-        # Initialize state with messages
         initial_state = SQLAgentState(
             user_question=user_question,
             messages=[HumanMessage(content=user_question)],
-            schema_info=[],
-            table_info="",
+            retrieved_schema_chunks=[],
             raw_sql_query="",
             cleaned_sql_query="",
             validation_result={},
@@ -450,18 +411,11 @@ class SQLLangGraphAgentGemini:
             retry_count=0
         )
         
-        # Configuration with thread_id for persistence
         config = {"configurable": {"thread_id": thread_id}}
         
         try:
-            # Run the workflow with config
             final_state = self.workflow.invoke(initial_state, config)
-            
-            # Format the response
             response = self._format_response(final_state)
-            
-            # No need to manually save context - checkpointer handles it automatically!
-            
             return response
             
         except Exception as e:
@@ -485,8 +439,7 @@ class SQLLangGraphAgentGemini:
         response = {
             "success": True,
             "user_question": state["user_question"],
-            "schema_info": state.get("schema_info", []),
-            "table_info": state.get("table_info", ""),
+            "retrieved_schema_chunks": state.get("retrieved_schema_chunks", []),
             "raw_sql_query": state.get("raw_sql_query", ""),
             "cleaned_sql_query": state.get("cleaned_sql_query", ""),
             "validation_result": state.get("validation_result", {}),

@@ -37,7 +37,7 @@ async def process_db_query(prompt: str, thread_id: str = None) -> dict:
     result = await chatbot.get_response(prompt, thread_id=thread_id)
     
     if result and result.get('success'):
-        response_data = result.get('execution_result', 'No execution result found.')
+        response_data = result.get('natural_language_response', 'No execution result found.')
     elif result:
         response_data = result.get('error', 'An unknown error occurred.')
     else:

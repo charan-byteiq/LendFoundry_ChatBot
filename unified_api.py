@@ -138,7 +138,7 @@ async def classify_query_with_gemini(
     
     for attempt in range(max_retries + 1):
         try:
-            print(f"🔄 Classification attempt {attempt + 1}/{max_retries + 1}")
+            print(f" Classification attempt {attempt + 1}/{max_retries + 1}")
             
             response = await model.generate_content_async(prompt)
             category = response.text.strip().lower()

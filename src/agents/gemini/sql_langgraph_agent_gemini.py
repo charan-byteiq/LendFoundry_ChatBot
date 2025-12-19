@@ -140,7 +140,7 @@ class SQLLangGraphAgentGemini:
             })
             
             rewritten_question = rewritten_question_message.content.strip()
-            
+            print(f"Rewritten Question: {rewritten_question}")
             return {
                 "user_question": rewritten_question,
                 "current_step": "question_rewriting_complete"
@@ -166,6 +166,7 @@ class SQLLangGraphAgentGemini:
                     "score": float(score),
                     "metadata": getattr(doc, "metadata", {}) or {}
                 })
+            print(retrieved)
             
             return {
                 "retrieved_schema_chunks": retrieved,

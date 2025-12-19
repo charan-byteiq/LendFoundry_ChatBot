@@ -23,11 +23,11 @@ class SQLQueryGenerator:
             google_api_key=self.api_key,
             temperature=0,  # Deterministic output for SQL
             max_output_tokens=2048,
-            safety_settings={
-                "HARM_CATEGORY_HARASSMENT": "BLOCK_NONE",
-                "HARM_CATEGORY_HATE_SPEECH": "BLOCK_NONE",
-                "HARM_CATEGORY_SEXUALLY_EXPLICIT": "BLOCK_NONE",
-                "HARM_CATEGORY_DANGEROUS_CONTENT": "BLOCK_NONE",
+            safety_settings = {
+                0: 0,  
+                1: 0,  
+                2: 0, 
+                3: 0,  
             }
         )
         

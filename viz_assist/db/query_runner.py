@@ -28,28 +28,16 @@ class RedshiftSQLTool(BaseTool):
         self,
         sql_query: str,
         run_manager: Optional[Any] = None,
-    ) -> str:
-        """Execute the SQL query on Redshift."""
+    ) -> pd.DataFrame:
+        """Execute the SQL query on Redshift and return DataFrame."""
         try:
             conn = self._get_connection()
             
-            # Execute query
+            # Execute query and return DataFrame
             df = pd.read_sql_query(sql_query, conn)
             conn.close()
-            
-            # Convert to string format
-            if df.empty:
-                return "Query executed successfully but returned no results."
-            
-            # Format results nicely
-            result_str = f"Query returned {len(df)} rows:\n\n"
-            result_str += df.to_string(index=False, max_rows=50)
-            
-            if len(df) > 50:
-                result_str += f"\n\n... and {len(df) - 50} more rows"
-                
-            return result_str
-            
+            return df  
+         
         except Exception as e:
             return f"Error executing query: {str(e)}"
     

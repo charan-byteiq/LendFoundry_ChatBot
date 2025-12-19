@@ -24,7 +24,7 @@ class RedshiftSQLTool(BaseTool):
     description: str = "Execute SQL queries on Redshift database through SSH tunnel and return results"
     args_schema: Type[BaseModel] = RedshiftQueryInput
 
-    def _run(self, sql_query: str, run_manager: Optional[Any] = None) -> str:
+    def _run(self, sql_query: str, run_manager: Optional[Any] = None):
         """Execute SQL query on Redshift."""
         conn = None
         tunnel = None
@@ -35,21 +35,20 @@ class RedshiftSQLTool(BaseTool):
             if sql_query.strip().lower().startswith("select"):
                 df = pd.read_sql_query(sql_query, conn)
                 if df.empty:
-                    return "Query executed successfully but returned no results."
-                result_str = f"Query returned {len(df)} rows:\n\n"
-                result_str += df.to_string(index=False, max_rows=50)
-                if len(df) > 50:
-                    result_str += f"\n\n... and {len(df) - 50} more rows"
-                return result_str
+                    # Return empty list instead of string
+                    return []
+                # Convert DataFrame to list of dicts for JSON serialization
+                return df.to_dict(orient='records')
             else:
-                # For non-SELECT queries, run using cursor
+                # For non-SELECT queries, return dict instead of string
                 with conn.cursor() as cur:
                     cur.execute(sql_query)
                     conn.commit()
-                return "Query executed successfully."
+                return {"status": "success", "message": "Query executed successfully"}
         
         except Exception as e:
-            return f"Error executing query: {str(e)}"
+            # Return error as dict instead of string
+            return {"error": str(e), "status": "failed"}
         
         finally:
             if conn is not None:
@@ -62,6 +61,7 @@ class RedshiftSQLTool(BaseTool):
                     tunnel.stop()
                 except:
                     pass
+
     
     async def _arun(self, sql_query: str, run_manager: Optional[Any] = None) -> str:
         """Async version calls sync method."""

@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import google.generativeai as genai
+from google import genai
 from dotenv import load_dotenv
 from uuid import uuid4
 import asyncio
@@ -17,7 +17,7 @@ from src.api import router as db_assist_router, process_db_query
 from viz_assist.api import router as viz_assist_router, process_viz_query, VizChatbotService
 
 load_dotenv()
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+# genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
 # --- Lifespan Event Handler ---
 
@@ -25,15 +25,15 @@ genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 async def lifespan(app: FastAPI):
     """Initialize services on startup"""
     # Startup: Initialize visualization chatbot service
-    print("🚀 Initializing Visualization Chatbot Service...")
+    print(" Initializing Visualization Chatbot Service...")
     viz_service = VizChatbotService.get_instance()
     viz_service.initialize()
-    print("✅ All services initialized")
+    print(" All services initialized")
     
     yield
     
     # Shutdown
-    print("👋 Shutting down Unified Chatbot API")
+    print(" Shutting down Unified Chatbot API")
 
 # Create app with lifespan
 app = FastAPI(
@@ -58,7 +58,6 @@ app.include_router(doc_assist_router)
 app.include_router(db_assist_router)
 app.include_router(viz_assist_router)
 
-# --- Response Models ---
 
 class ChatResponse(BaseModel):
     backend: str
@@ -68,8 +67,10 @@ class ChatResponse(BaseModel):
     data: Optional[List[Dict[str, Any]]] = None
     sql_query: Optional[str] = None
     chart_analysis: Optional[Dict[str, Any]] = None
+    record_count: Optional[int] = None
+    error: Optional[str] = None
 
-# --- Classification Logic ---
+# Classification Logic 
 
 async def classify_query_with_gemini(
     query: str,
@@ -133,13 +134,16 @@ async def classify_query_with_gemini(
     Respond with EXACTLY one of: company knowledge, document q&a, database, visualization, out_of_scope
     """
     
-    model = genai.GenerativeModel('models/gemini-2.5-flash')
+    client = genai.Client()
     
     for attempt in range(max_retries + 1):
         try:
-            print(f"🔄 Classification attempt {attempt + 1}/{max_retries + 1}")
+            print(f" Classification attempt {attempt + 1}/{max_retries + 1}")
             
-            response = await model.generate_content_async(prompt)
+            response = await client.aio.models.generate_content(
+                model="models/gemini-2.5-flash",
+                contents=prompt
+            )
             category = response.text.strip().lower()
             
             # Parse response
@@ -154,24 +158,24 @@ async def classify_query_with_gemini(
             elif "company" in category or "knowledge" in category:
                 return "company knowledge"
             
-            print(f"⚠️ Unrecognized category: {category}")
+            print(f" Unrecognized category: {category}")
             return "out_of_scope"
             
         except Exception as e:
-            print(f"⚠️ Gemini classification error (attempt {attempt + 1}/{max_retries + 1}): {e}")
+            print(f" Gemini classification error (attempt {attempt + 1}/{max_retries + 1}): {e}")
             
             if attempt == max_retries:
-                print(f"❌ Max retries reached. Using fallback classification.")
+                print(f" Max retries reached. Using fallback classification.")
                 break
             
             delay = min(base_delay * (2 ** attempt), 10.0)
             jitter = random.uniform(0, 0.5)
             total_delay = delay + jitter
             
-            print(f"⏳ Retrying in {total_delay:.2f} seconds...")
+            print(f" Retrying in {total_delay:.2f} seconds...")
             await asyncio.sleep(total_delay)
     
-    print(f"⚠️ Falling back to default classification")
+    print(f" Falling back to default classification")
     return "out_of_scope"
 
 async def generate_deflection_response(query: str) -> str:
@@ -196,13 +200,16 @@ async def generate_deflection_response(query: str) -> str:
     Generate your polite deflection response now:
     """
     
-    model = genai.GenerativeModel('models/gemini-2.5-flash')
+    client = genai.Client()
     
     try:
-        response = await model.generate_content_async(prompt)
+        response = await client.aio.models.generate_content(
+            model="models/gemini-2.5-flash",
+            contents=prompt
+        )
         return response.text.strip()
     except Exception as e:
-        print(f"⚠️ Error generating deflection: {e}")
+        print(f" Error generating deflection: {e}")
         return (
             "I'd love to help you with that! My specialty is assisting with loan applications, "
             "policies, document reviews, account information, and data visualizations. "
@@ -224,20 +231,20 @@ async def unified_chat(
     # Generate or use existing session_id
     if not session_id:
         session_id = str(uuid4())
-        print(f"🆕 New session: {session_id}")
+        print(f" New session: {session_id}")
     else:
-        print(f"🔄 Continuing session: {session_id}")
+        print(f" Continuing session: {session_id}")
     
     doc_uploaded = file is not None
-    print(f"📩 Query: '{message}' | Doc: {doc_uploaded}")
+    print(f" Query: '{message}' | Doc: {doc_uploaded}")
 
     # Step 1: Classify the query
     category = await classify_query_with_gemini(message, doc_uploaded)
-    print(f"🎯 Category: {category}")
+    print(f" Category: {category}")
     
     # Step 2: Handle out-of-scope queries
     if category == "out_of_scope":
-        print("🚫 Out of scope - generating deflection response")
+        print(" Out of scope - generating deflection response")
         answer = await generate_deflection_response(message)
         return ChatResponse(
             backend="scope_guard",
@@ -248,8 +255,8 @@ async def unified_chat(
     
     # Step 3: Handle edge cases
     if category == "document q&a" and not doc_uploaded:
-        print("⚠️ Document Q&A without file - fallback to company knowledge")
-        category = "company knowledge"
+        print(" Document Q&A without file - fallback to llM")
+        category = "out_of_scope"
 
     # Step 4: Route to appropriate backend (direct function calls)
     answer = ""
@@ -277,6 +284,10 @@ async def unified_chat(
         result = await process_db_query(message)
         answer = result["response"]
         backend = "db_assist"
+        if not result.get("success", True):
+             # If success is explicitly False, we can flag it, 
+             # though usually the error message is in 'answer'
+             pass
     
     elif category == "visualization":
         print("→ Routing to Visualization Assist")
@@ -296,13 +307,13 @@ async def unified_chat(
         
     else:
         # Fallback
-        print("⚠️ Unknown category - fallback to LF Assist")
+        print(" Unknown category - fallback to LF Assist")
         result = await process_lf_chat(message, session_id)
         answer = result.answer
         tags = result.tags
         backend = "lf_assist"
 
-    print(f"✅ Response from {backend}: {answer[:100]}...")
+    print(f" Response from {backend}: {answer[:100]}...")
     
     return ChatResponse(
         backend=backend,
@@ -311,7 +322,9 @@ async def unified_chat(
         tags=tags if tags else None,
         data=data,
         sql_query=sql_query,
-        chart_analysis=chart_analysis
+        chart_analysis=chart_analysis,
+        record_count=len(data) if data else None,
+        error=result.error if backend == "viz_assist" and hasattr(result, "error") else None
     )
 
 # --- Utility Endpoints ---
@@ -321,10 +334,10 @@ async def clear_session(session_id: str):
     """Clear conversation history for LF Assist session"""
     try:
         clear_conversation(session_id)
-        print(f"🗑️ Cleared session: {session_id}")
+        print(f" Cleared session: {session_id}")
         return {"message": f"Session {session_id} cleared", "success": True}
     except Exception as e:
-        print(f"❌ Error clearing session: {e}")
+        print(f" Error clearing session: {e}")
         return {"message": f"Error: {str(e)}", "success": False}
 
 @app.get("/health")

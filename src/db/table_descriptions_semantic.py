@@ -22,15 +22,6 @@ schema_info = """Schema : fl_lms
 
 documents = [
     # --- accrual_balances ---
-
-    Document(
-        page_content="Table: accrual_balances. This table tracks the financial state of loans, including outstanding balances, due payments, and charge-off status.",
-        metadata={
-            "table_name": "accrual_balances",
-            "chunk_type": "table_overview"
-        }
-    ),
-
     Document(
         page_content="""
             Fields related to accrual_balances (Identifiers):
@@ -134,14 +125,6 @@ documents = [
     ),
 
     # --- loan_filters ---
-
-    Document(
-        page_content="Table: loan_filters. This table contains loan master data, borrower demographics, loan terms, status information, and key dates for loan lifecycle management.",
-        metadata={
-            "table_name": "loan_filters",
-            "chunk_type": "table_overview"
-        }
-    ),
 
     Document(
         page_content="""
@@ -260,14 +243,6 @@ documents = [
     # --- loan_onboarding ---
 
     Document(
-        page_content="Table: loan_onboarding. This table contains detailed information about the loan application and onboarding process, including applicant details, credit scores, and custom fields.",
-        metadata={
-            "table_name": "loan_onboarding",
-            "chunk_type": "table_overview"
-        }
-    ),
-
-    Document(
         page_content="""
             Fields related to loan_onboarding (Loan Identification):
 
@@ -357,14 +332,6 @@ documents = [
     ),
 
     # --- los_borrower_application ---
-
-    Document(
-        page_content="Table: los_borrower_application. This table stores comprehensive information about loan applications, including borrower details, application status, financial metrics, and tracking information.",
-        metadata={
-            "table_name": "los_borrower_application",
-            "chunk_type": "table_overview"
-        }
-    ),
 
     Document(
         page_content="""
@@ -496,13 +463,6 @@ documents = [
     ),
 
     # --- los_offer ---
-    Document(
-        page_content="Table: los_offer. This table details various loan offers made to borrowers, including financial terms, status, and related fees.",
-        metadata={
-            "table_name": "los_offer",
-            "chunk_type": "table_overview"
-        }
-    ),
 
     Document(
         page_content="""
@@ -607,13 +567,7 @@ documents = [
         }
     ),
 
-    Document(
-        page_content="Table: los_address. This table stores address information, primarily for industry or applicant addresses.",
-        metadata={
-            "table_name": "los_address",
-            "chunk_type": "table_overview"
-        }
-    ),
+    # --- los_address ---
 
     Document(
         page_content="""
@@ -642,13 +596,8 @@ documents = [
         }
     ),
 
-    Document(
-        page_content="Table: customerdataproductfinal. This table aggregates final, processed data for customers and their associated products, including business demographics, loan application history, financial performance, and loan specific metrics.",
-        metadata={
-            "table_name": "customerdataproductfinal",
-            "chunk_type": "table_overview"
-        }
-    ),
+
+    # --- customerdataproductfinal ---
 
     Document(
         page_content="""

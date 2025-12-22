@@ -5,15 +5,13 @@ from pydantic import BaseModel
 from fastapi.responses import JSONResponse
 import uuid
 
-# Add the project root to the Python path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from main_gemini import Chatbot
 
-# Create router instead of app
+
 router = APIRouter(prefix="/db-assist", tags=["DB Assist"])
 
-# Initialize the chatbot
 chatbot = Chatbot()
 
 class ChatRequest(BaseModel):
@@ -28,7 +26,6 @@ class ChatRequest(BaseModel):
             }
         }
 
-# Core logic extracted as callable function
 async def process_db_query(prompt: str, thread_id: str = None) -> dict:
     """
     Core DB Assist logic - can be called directly from unified API
@@ -40,7 +37,7 @@ async def process_db_query(prompt: str, thread_id: str = None) -> dict:
     result = await chatbot.get_response(prompt, thread_id=thread_id)
     
     if result and result.get('success'):
-        response_data = result.get('execution_result', 'No execution result found.')
+        response_data = result.get('natural_language_response', 'No execution result found.')
     elif result:
         response_data = result.get('error', 'An unknown error occurred.')
     else:

@@ -1,7 +1,7 @@
 # app/api.py
 import re
 from typing import Dict, List
-from fastapi import APIRouter  # Changed from FastAPI
+from fastapi import APIRouter  
 from pydantic import BaseModel
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 from lf_assist.app.query_tagger import tag_query
@@ -67,7 +67,7 @@ def clear_conversation(session_id: str):
     """Clear conversation history for a specific session"""
     if session_id in conversation_store:
         del conversation_store[session_id]
-        print(f"🗑️ Cleared conversation history for session: {session_id}")
+        print(f" Cleared conversation history for session: {session_id}")
 
 def get_all_sessions() -> List[str]:
     """Get list of all active session IDs"""
@@ -78,11 +78,11 @@ async def process_lf_chat(query: str, session_id: str = "default") -> ChatRespon
     """
     Core LF Assist logic - can be called directly from unified API
     """
-    print(f"\n📥 Received query: {query} (session: {session_id})")
+    print(f"\n Received query: {query} (session: {session_id})")
     
     messages = get_conversation_history(session_id)
     sub_questions = split_questions(query)
-    print(f"🔍 Detected {len(sub_questions)} sub-question(s): {sub_questions}")
+    print(f" Detected {len(sub_questions)} sub-question(s): {sub_questions}")
     
     all_chunks = []
     all_tags = []
@@ -90,9 +90,9 @@ async def process_lf_chat(query: str, session_id: str = "default") -> ChatRespon
     for q in sub_questions:
         try:
             tags = tag_query(q, TAG_PROMPT_PATH)
-            print(f"🏷️ Tags for '{q}': {tags}")
+            print(f" Tags for '{q}': {tags}")
         except Exception as e:
-            print("⚠️ Error tagging query:", e)
+            print(" Error tagging query:", e)
             tags = []
         
         all_tags.extend(tags)
@@ -100,16 +100,16 @@ async def process_lf_chat(query: str, session_id: str = "default") -> ChatRespon
         try:
             chat_history_dict = format_chat_history_for_memory_dict(messages)
             chunks = get_relevant_chunks(q, tags, chat_history=chat_history_dict)
-            print(f"📚 Retrieved {len(chunks)} chunks for '{q}'")
+            print(f" Retrieved {len(chunks)} chunks for '{q}'")
             all_chunks.extend(chunks)
         except Exception as e:
-            print("❌ Retrieval Error:", e)
+            print(" Retrieval Error:", e)
     
     all_chunks = list(set(all_chunks))
     formatted_chunks = [{"content": c} for c in all_chunks]
     
     if messages:
-        print("\n🧠 Current Conversation History:")
+        print("\n Current Conversation History:")
         for msg in messages:
             role = "User" if isinstance(msg, HumanMessage) else "Bot"
             print(f"{role}: {msg.content}")
@@ -124,7 +124,7 @@ async def process_lf_chat(query: str, session_id: str = "default") -> ChatRespon
     add_to_conversation(session_id, HumanMessage(content=query))
     add_to_conversation(session_id, AIMessage(content=answer))
     
-    print(f"\n🤖 Final Answer: {answer}\n{'='*60}")
+    print(f"\n Final Answer: {answer}\n{'='*60}")
     return ChatResponse(
         query=query,
         tags=list(set(all_tags)),

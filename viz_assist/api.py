@@ -4,16 +4,14 @@ import logging
 import json
 from typing import Optional, Dict, Any, List
 
-# Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
-import google.generativeai as genai
+from google import genai
 
-# Your existing imports
 try:
     from viz_assist.agents.langgraph_agent import SQLLangGraphAgentGemini
     from viz_assist.db.vector_db_store import get_vector_store
@@ -23,23 +21,16 @@ except ImportError as e:
     print(f"Critical Import Error: {e}")
     sys.exit(1)
 
-# Configure Logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
-# Load Environment
 load_dotenv()
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-if GOOGLE_API_KEY:
-    genai.configure(api_key=GOOGLE_API_KEY)
+# Note: google-genai Client auto-uses GOOGLE_API_KEY from environment
 
-# Create router
 router = APIRouter(prefix="/viz-assist", tags=["Visualization Assist"])
-
-# --- Pydantic Models ---
 
 class ChatRequest(BaseModel):
     question: str = Field(..., description="The user's natural language query")
@@ -64,8 +55,6 @@ class ChatResponse(BaseModel):
     chart_analysis: Optional[ChartAnalysis] = None
     error: Optional[str] = None
     record_count: int = 0
-
-# --- Chatbot Service Logic ---
 
 class VizChatbotService:
     """Visualization Chatbot Service - Singleton instance"""

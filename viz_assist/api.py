@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
-import google.generativeai as genai
+from google import genai
 
 try:
     from viz_assist.agents.langgraph_agent import SQLLangGraphAgentGemini
@@ -28,9 +28,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 load_dotenv()
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-if GOOGLE_API_KEY:
-    genai.configure(api_key=GOOGLE_API_KEY)
+# Note: google-genai Client auto-uses GOOGLE_API_KEY from environment
 
 router = APIRouter(prefix="/viz-assist", tags=["Visualization Assist"])
 

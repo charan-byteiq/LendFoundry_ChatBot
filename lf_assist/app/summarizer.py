@@ -1,7 +1,7 @@
 import re
 import os
 from typing import Optional, Dict, Any, List
-import google.generativeai as genai
+from google import genai
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 
@@ -9,9 +9,9 @@ from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 load_dotenv()
 
 
-# Configure Gemini
-model = genai.GenerativeModel("gemini-2.5-flash")
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+# Configure Gemini Client
+client = genai.Client()
+# genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 
 def clean_markdown(text: str) -> str:
@@ -94,7 +94,10 @@ Answer the question based only on the conversation history above.
 If you cannot find the answer there, reply with:
 "I'm unable to answer your query. Kindly reach out to customer support."
 """
-            response = model.generate_content(fallback_prompt)
+            response = client.models.generate_content(
+                model="models/gemini-2.5-flash",
+                contents=fallback_prompt
+            )
             return clean_markdown(response.text)
 
         return "I'm unable to answer your query. Kindly reach out to customer support."
@@ -173,7 +176,10 @@ Remember, only use information from the provided context and conversation histor
 """.strip()
 
     # Generate response from Gemini
-    response = model.generate_content(prompt)
+    response = client.models.generate_content(
+        model="models/gemini-2.5-flash",
+        contents=prompt
+    )
     return clean_markdown(response.text)
 
 
@@ -230,9 +236,10 @@ Answer the question based only on the conversation history above.
 If you cannot find the answer there, reply with:
 "I'm unable to answer your query. Kindly reach out to customer support."
 """
-                response = model.generate_content(
-                    fallback_prompt,
-                    generation_config=genai.types.GenerationConfig(**generation_config)
+                response = client.models.generate_content(
+                    model="models/gemini-2.5-flash",
+                    contents=fallback_prompt,
+                    config=genai.types.GenerateContentConfig(**generation_config)
                 )
                 return {
                     "success": True,
@@ -318,9 +325,10 @@ Please provide only the answer to user query in the response no additional comme
 Remember, only use information from the provided context and conversation history to answer the question.
 """.strip()
 
-        response = model.generate_content(
-            prompt,
-            generation_config=genai.types.GenerationConfig(**generation_config)
+        response = client.models.generate_content(
+            model="models/gemini-2.5-flash",
+            contents=prompt,
+            config=genai.types.GenerateContentConfig(**generation_config)
         )
         
         return {

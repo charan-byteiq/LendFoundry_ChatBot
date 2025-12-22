@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import google.generativeai as genai
+from google import genai
 from dotenv import load_dotenv
 from uuid import uuid4
 import asyncio
@@ -17,7 +17,7 @@ from src.api import router as db_assist_router, process_db_query
 from viz_assist.api import router as viz_assist_router, process_viz_query, VizChatbotService
 
 load_dotenv()
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+# genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
 # --- Lifespan Event Handler ---
 
@@ -134,13 +134,16 @@ async def classify_query_with_gemini(
     Respond with EXACTLY one of: company knowledge, document q&a, database, visualization, out_of_scope
     """
     
-    model = genai.GenerativeModel('models/gemini-2.5-flash')
+    client = genai.Client()
     
     for attempt in range(max_retries + 1):
         try:
             print(f" Classification attempt {attempt + 1}/{max_retries + 1}")
             
-            response = await model.generate_content_async(prompt)
+            response = await client.aio.models.generate_content(
+                model="models/gemini-2.5-flash",
+                contents=prompt
+            )
             category = response.text.strip().lower()
             
             # Parse response
@@ -197,10 +200,13 @@ async def generate_deflection_response(query: str) -> str:
     Generate your polite deflection response now:
     """
     
-    model = genai.GenerativeModel('models/gemini-2.5-flash')
+    client = genai.Client()
     
     try:
-        response = await model.generate_content_async(prompt)
+        response = await client.aio.models.generate_content(
+            model="models/gemini-2.5-flash",
+            contents=prompt
+        )
         return response.text.strip()
     except Exception as e:
         print(f" Error generating deflection: {e}")

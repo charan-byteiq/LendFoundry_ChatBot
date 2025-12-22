@@ -1,13 +1,12 @@
-import google.generativeai as genai
+from google import genai
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# Configure Gemini
-
-model = genai.GenerativeModel("gemini-2.5-flash")
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+# Configure Gemini Client
+client = genai.Client()
+# genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 
 def tag_query(query: str, tag_prompt_path: str) -> list[str]:
@@ -17,7 +16,10 @@ def tag_query(query: str, tag_prompt_path: str) -> list[str]:
 
         final_prompt = prompt_template.replace("{question}", query.strip())
 
-        response = model.generate_content(final_prompt).text.strip()
+        response = client.models.generate_content(
+            model="models/gemini-2.5-flash",
+            contents=final_prompt
+        ).text.strip()
 
         # Look for "Tag(s):" line
         tag_line = next((line for line in response.splitlines() if line.startswith("Tag(s):")), "")

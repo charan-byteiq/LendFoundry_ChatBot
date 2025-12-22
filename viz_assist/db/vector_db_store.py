@@ -4,11 +4,12 @@ import psycopg2
 from psycopg2 import pool
 import os
 from dotenv import load_dotenv
-import google.generativeai as genai
+# Note: Using langchain_google_genai for embeddings, not direct genai SDK
+
 
 load_dotenv()
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-genai.configure(api_key=GOOGLE_API_KEY)
+# genai.configure(api_key=GOOGLE_API_KEY)
 
 COLLECTION_NAME = os.getenv("COLLECTION_NAME")
 PGVECTOR_CONNECTION_STRING = os.getenv("PGVECTOR_CONNECTION_STRING")

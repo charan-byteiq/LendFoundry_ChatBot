@@ -4,7 +4,6 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
-# Note: Using langchain_google_genai, not direct genai SDK
 
 import asyncio
 import json
@@ -14,17 +13,13 @@ from agents.langgraph_agent import SQLLangGraphAgentGemini
 from db.vector_db_store import store_in_vector_db, get_vector_store
 from db.query_runner import RedshiftSQLTool
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_google_genai import ChatGoogleGenerativeAI
+# Note: LLM is now provided by centralized services
 
 # Import schema and document information
 from db.table_descriptions_semantic import documents, join_details, schema_info
 
 # Load environment variables from .env file
 load_dotenv()
-
-# Configuration
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-# genai.configure(api_key=GOOGLE_API_KEY)
 
 
 class Chatbot:

@@ -1,8 +1,8 @@
 
 import streamlit as st
-from google import genai
 import os
 from dotenv import load_dotenv
+from services import get_gemini_client
 
 # --- Configuration ---
 load_dotenv()
@@ -11,35 +11,26 @@ if not api_key:
     st.error("GOOGLE_API_KEY or GEMINI_API_KEY environment variable is not set.")
     st.stop()
 
-# genai.configure(api_key=api_key)
-
 # --- Helper Functions ---
 def get_gemini_response_doc(question, pdf_content):
     """Sends the user's question and PDF content to the Gemini API."""
-    client = genai.Client()
+    gemini = get_gemini_client()
     
     # The Gemini API can take the raw bytes of the PDF directly.
     pdf_part = {"mime_type": "application/pdf", "data": pdf_content}
     
     try:
-        response = client.models.generate_content(
-            model="models/gemini-2.5-flash",
-            contents=[question, pdf_part]
-        )
+        response = gemini.generate_content([question, pdf_part])
         return response.text
     except Exception as e:
         return f"An error occurred: {e}"
 
 def get_gemini_response_db(question):
     """Sends the user's question to the Gemini API for a database query."""
-    client = genai.Client()
+    gemini = get_gemini_client()
     
     try:
-        response = client.models.generate_content(
-            model="models/gemini-2.5-flash",
-            contents=question
-        )
-        return response.text
+        return gemini.generate(question)
     except Exception as e:
         return f"An error occurred: {e}"
 

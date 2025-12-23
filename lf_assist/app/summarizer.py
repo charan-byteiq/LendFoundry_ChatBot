@@ -1,16 +1,16 @@
 import re
 import os
 from typing import Optional, Dict, Any, List
-from google import genai
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
+from services import get_gemini_client
 
 
 load_dotenv()
 
 
-# Configure Gemini Client
-client = genai.Client()
+# Get centralized Gemini client
+gemini = get_gemini_client()
 # genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 
@@ -94,11 +94,8 @@ Answer the question based only on the conversation history above.
 If you cannot find the answer there, reply with:
 "I'm unable to answer your query. Kindly reach out to customer support."
 """
-            response = client.models.generate_content(
-                model="models/gemini-2.5-flash",
-                contents=fallback_prompt
-            )
-            return clean_markdown(response.text)
+            response = gemini.generate(fallback_prompt)
+            return clean_markdown(response)
 
         return "I'm unable to answer your query. Kindly reach out to customer support."
 
@@ -176,11 +173,8 @@ Remember, only use information from the provided context and conversation histor
 """.strip()
 
     # Generate response from Gemini
-    response = client.models.generate_content(
-        model="models/gemini-2.5-flash",
-        contents=prompt
-    )
-    return clean_markdown(response.text)
+    response = gemini.generate(prompt)
+    return clean_markdown(response)
 
 
 def summarize_with_safety(
@@ -236,14 +230,10 @@ Answer the question based only on the conversation history above.
 If you cannot find the answer there, reply with:
 "I'm unable to answer your query. Kindly reach out to customer support."
 """
-                response = client.models.generate_content(
-                    model="models/gemini-2.5-flash",
-                    contents=fallback_prompt,
-                    config=genai.types.GenerateContentConfig(**generation_config)
-                )
+                response = gemini.generate(fallback_prompt)
                 return {
                     "success": True,
-                    "answer": clean_markdown(response.text),
+                    "answer": clean_markdown(response),
                     "source": "conversation_history"
                 }
 
@@ -325,15 +315,11 @@ Please provide only the answer to user query in the response no additional comme
 Remember, only use information from the provided context and conversation history to answer the question.
 """.strip()
 
-        response = client.models.generate_content(
-            model="models/gemini-2.5-flash",
-            contents=prompt,
-            config=genai.types.GenerateContentConfig(**generation_config)
-        )
+        response = gemini.generate(prompt)
         
         return {
             "success": True,
-            "answer": clean_markdown(response.text),
+            "answer": clean_markdown(response),
             "source": "context",
             "chunks_used": len(chunks)
         }

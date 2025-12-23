@@ -8,8 +8,8 @@ from langgraph.graph import StateGraph, END
 from langgraph.graph.message import add_messages
 from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
+from services import get_langchain_llm
 
 # Assumed import from your project structure
 from .llm_model_gemini import SQLQueryGenerator
@@ -55,13 +55,8 @@ class SQLLangGraphAgentGemini:
         contains tables : customerdataproductfinal
         """
         
-        # Initialize the LLM for helper tasks
-        self.llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash",
-            temperature=0.1,
-            max_output_tokens=2048,
-            google_api_key=os.getenv("GOOGLE_API_KEY")
-        )
+        # Use centralized LangChain LLM service
+        self.llm = get_langchain_llm()
         
         # Add checkpointer for persistence
         self.checkpointer = MemorySaver()
@@ -237,7 +232,7 @@ class SQLLangGraphAgentGemini:
             if raw_query is None:
                 raise ValueError("SQL Generator returned None")
 
-            print(f"Generated SQL Query: {raw_query}")
+            logger.debug(f"Generated SQL Query: {raw_query}")
             return {
                 "raw_sql_query": raw_query,
                 "current_step": "sql_generation_complete",

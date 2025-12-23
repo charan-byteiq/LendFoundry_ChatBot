@@ -3,10 +3,11 @@ from langgraph.graph import StateGraph, END
 from langgraph.graph.message import add_messages
 from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
 from .llm_model_gemini import SQLQueryGenerator
 from langchain_core.prompts import ChatPromptTemplate
 import os
+from logger import logger
+from services import get_langchain_llm
 
 
 class SQLAgentState(TypedDict):
@@ -33,12 +34,8 @@ class SQLLangGraphAgentGemini:
         self.db_structure = schema_info
         self.query_runner = query_runner
         
-        self.llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash",
-            temperature=0.1,
-            max_output_tokens=2048,
-            convert_system_message_to_human=True,
-        )
+        # Use centralized LangChain LLM service
+        self.llm = get_langchain_llm()
         
         self.checkpointer = MemorySaver()
         self.workflow = self._build_workflow()
@@ -140,7 +137,7 @@ class SQLLangGraphAgentGemini:
             })
             
             rewritten_question = rewritten_question_message.content.strip()
-            print(f"Rewritten Question: {rewritten_question}")
+            logger.debug(f"Rewritten Question: {rewritten_question}")
             return {
                 "user_question": rewritten_question,
                 "current_step": "question_rewriting_complete"
@@ -166,7 +163,7 @@ class SQLLangGraphAgentGemini:
                     "score": float(score),
                     "metadata": getattr(doc, "metadata", {}) or {}
                 })
-            print(retrieved)
+            logger.debug(f"Retrieved {len(retrieved)} schema chunks")
             
             return {
                 "retrieved_schema_chunks": retrieved,
@@ -364,7 +361,7 @@ The database is organized into schemas and tables as follows:
     def _error_handler_node(self, state: SQLAgentState) -> Dict[str, Any]:
         """Handle errors and provide meaningful feedback"""
         error_msg = state.get('error_message', 'Unknown error')
-        print(f"Error occurred: {error_msg}")
+        logger.error(f"Error occurred: {error_msg}")
         
         return {
             "messages": [AIMessage(content=error_msg)],

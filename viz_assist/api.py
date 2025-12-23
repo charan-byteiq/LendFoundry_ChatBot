@@ -10,7 +10,6 @@ from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
-from google import genai
 
 try:
     from viz_assist.agents.langgraph_agent import SQLLangGraphAgentGemini
@@ -18,7 +17,8 @@ try:
     from viz_assist.db.query_runner import RedshiftSQLTool
     from viz_assist.db.table_descriptions_semantic import join_details, schema_info
 except ImportError as e:
-    print(f"Critical Import Error: {e}")
+    import sys
+    sys.stderr.write(f"Critical Import Error: {e}\n")
     sys.exit(1)
 
 logging.basicConfig(
@@ -32,29 +32,123 @@ load_dotenv()
 
 router = APIRouter(prefix="/viz-assist", tags=["Visualization Assist"])
 
+
+# =============================================
+# REQUEST/RESPONSE SCHEMAS
+# =============================================
+
 class ChatRequest(BaseModel):
-    question: str = Field(..., description="The user's natural language query")
-    thread_id: str = Field(default="default", description="Session ID for conversation history")
+    """Request body for visualization chat endpoint"""
+    question: str = Field(
+        ..., 
+        description="Natural language query requesting data visualization",
+        min_length=1,
+        max_length=2000
+    )
+    thread_id: str = Field(
+        default="default", 
+        description="Session ID for conversation history"
+    )
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "question": "Show me a bar chart of loan amounts by state",
+                "thread_id": "user_123_session_456"
+            }
+        }
 
 class ChartConfig(BaseModel):
-    type: str
-    title: str
-    x_axis: Optional[str] = None
-    y_axis: Optional[str] = None
-    reason: Optional[str] = None
+    """Configuration for rendering a chart"""
+    type: str = Field(..., description="Chart type: 'bar', 'line', 'pie', 'scatter', 'area'")
+    title: str = Field(..., description="Title to display on the chart")
+    x_axis: Optional[str] = Field(None, description="Data key for X-axis")
+    y_axis: Optional[str] = Field(None, description="Data key for Y-axis")
+    reason: Optional[str] = Field(None, description="Why this chart type was recommended")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "type": "bar",
+                "title": "Loan Distribution by State",
+                "x_axis": "state",
+                "y_axis": "loan_count",
+                "reason": "Bar chart is ideal for comparing categorical data"
+            }
+        }
+
 
 class ChartAnalysis(BaseModel):
-    chartable: bool
-    reasoning: Optional[str] = None
-    auto_chart: Optional[ChartConfig] = None
-    suggested_charts: Optional[List[Dict[str, Any]]] = None
+    """Analysis result determining if and how data should be visualized"""
+    chartable: bool = Field(..., description="Whether the data is suitable for chart visualization")
+    reasoning: Optional[str] = Field(None, description="Explanation of the chartability decision")
+    auto_chart: Optional[ChartConfig] = Field(None, description="Recommended chart configuration")
+    suggested_charts: Optional[List[Dict[str, Any]]] = Field(None, description="Alternative chart options")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "chartable": True,
+                "reasoning": "Data has categorical X values and numeric Y values, suitable for visualization",
+                "auto_chart": {
+                    "type": "bar",
+                    "title": "Loans by State",
+                    "x_axis": "state",
+                    "y_axis": "count"
+                },
+                "suggested_charts": [{"type": "pie", "title": "State Distribution"}]
+            }
+        }
 
 class ChatResponse(BaseModel):
-    sql_query: Optional[str] = None
-    data: Optional[List[Dict[str, Any]]] = None
-    chart_analysis: Optional[ChartAnalysis] = None
-    error: Optional[str] = None
-    record_count: int = 0
+    """Response from visualization endpoint containing query results and chart config"""
+    sql_query: Optional[str] = Field(None, description="The generated SQL query (for debugging/transparency)")
+    data: Optional[List[Dict[str, Any]]] = Field(None, description="Query result data rows to visualize")
+    chart_analysis: Optional[ChartAnalysis] = Field(None, description="Chart configuration and analysis")
+    error: Optional[str] = Field(None, description="Error message if query failed")
+    record_count: int = Field(default=0, description="Number of data records returned")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "sql_query": "SELECT state, COUNT(*) as loan_count FROM loans GROUP BY state",
+                "data": [
+                    {"state": "CA", "loan_count": 150},
+                    {"state": "TX", "loan_count": 120},
+                    {"state": "NY", "loan_count": 100}
+                ],
+                "chart_analysis": {
+                    "chartable": True,
+                    "reasoning": "Categorical data suitable for bar chart",
+                    "auto_chart": {
+                        "type": "bar",
+                        "title": "Loans by State",
+                        "x_axis": "state",
+                        "y_axis": "loan_count"
+                    }
+                },
+                "error": None,
+                "record_count": 3
+            }
+        }
+
+
+class VizHealthResponse(BaseModel):
+    """Health check response for visualization service"""
+    vector_store: bool = Field(..., description="Vector store connection status")
+    query_runner: bool = Field(..., description="Database query runner status")
+    agent_ready: bool = Field(..., description="SQL agent initialization status")
+    initialized: bool = Field(..., description="Overall service initialization status")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "vector_store": True,
+                "query_runner": True,
+                "agent_ready": True,
+                "initialized": True
+            }
+        }
 
 class VizChatbotService:
     """Visualization Chatbot Service - Singleton instance"""
@@ -200,27 +294,64 @@ async def process_viz_query(question: str, thread_id: str = "default") -> ChatRe
 
 # --- Router Endpoints ---
 
-@router.get("/health")
-async def health_check():
+@router.get(
+    "/health",
+    response_model=VizHealthResponse,
+    responses={
+        200: {"description": "Service is healthy", "model": VizHealthResponse},
+        503: {"description": "Service is not ready", "model": VizHealthResponse}
+    },
+    summary="Health Check",
+    description="Check the health status of visualization service components."
+)
+async def health_check() -> VizHealthResponse:
     """Check the health of the visualization agent components"""
     service = VizChatbotService.get_instance()
     
-    status_report = {
-        "vector_store": service.vector_store is not None,
-        "query_runner": service.query_runner is not None,
-        "agent_ready": service.gemini_agent is not None,
-        "initialized": service._initialized
-    }
+    response = VizHealthResponse(
+        vector_store=service.vector_store is not None,
+        query_runner=service.query_runner is not None,
+        agent_ready=service.gemini_agent is not None,
+        initialized=service._initialized
+    )
     
     if not service.is_ready():
-        return JSONResponse(status_code=503, content=status_report)
+        return JSONResponse(status_code=503, content=response.dict())
     
-    return status_report
+    return response
 
-@router.post("/chat", response_model=ChatResponse)
-async def chat_endpoint(request: ChatRequest):
+
+@router.post(
+    "/chat", 
+    response_model=ChatResponse,
+    summary="Visualization Query",
+    description="""
+    Execute a natural language query and receive data with chart configuration.
+    
+    The system will:
+    1. Understand your visualization request
+    2. Generate and execute appropriate SQL
+    3. Analyze the data for chart suitability
+    4. Return data + recommended chart configuration
+    
+    **Visualization Keywords:**
+    - "chart", "graph", "plot", "visualize"
+    - "trend", "compare", "distribution"
+    - "show me", "display"
+    
+    **Examples:**
+    - "Show me a bar chart of loan amounts by state"
+    - "Plot the monthly loan trend for 2024"
+    - "Visualize the distribution of interest rates"
+    - "Compare loan products by average amount"
+    
+    **Frontend Integration:**
+    1. Check `chart_analysis.chartable` to see if data can be charted
+    2. Use `chart_analysis.auto_chart` for recommended chart config
+    3. Use `data` array to render the chart or table
+    4. Optionally display `sql_query` in a collapsible section
     """
-    Visualization chat endpoint.
-    Receives a natural language question and returns SQL data + chart config.
-    """
+)
+async def chat_endpoint(request: ChatRequest) -> ChatResponse:
+    """Visualization chat endpoint - returns SQL data + chart config"""
     return await process_viz_query(request.question, request.thread_id)

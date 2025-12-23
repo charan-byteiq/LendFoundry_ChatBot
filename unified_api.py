@@ -15,8 +15,8 @@ from services import get_gemini_client
 
 # Import all routers
 from lf_assist.app.api import router as lf_assist_router, process_lf_chat, clear_conversation
-from new.api import router as doc_assist_router, process_pdf_question
-from src.api import router as db_assist_router, process_db_query
+from doc_assist.api import router as doc_assist_router, process_pdf_question 
+from db_assist.api import router as db_assist_router, process_db_query
 from viz_assist.api import router as viz_assist_router, process_viz_query, VizChatbotService
 
 load_dotenv()
@@ -363,24 +363,24 @@ async def classify_query_with_gemini(
 
     Classify the user's query into EXACTLY ONE category:
 
-    1. **company knowledge**
+    1. **LF Assist** (company knowledge)
        - Questions about company policies, lending procedures, loan products, fees, contact info
        - How-to questions about using the company's services
        - General information about lending processes
        Examples: "How do I apply for a loan?", "What are your interest rates?", "What documents do I need?"
 
-    2. **document q&a** 
+    2. **doc_assist** (document Q&A)
        - Questions specifically about an uploaded document's content
        - ONLY choose this if document IS uploaded
        Examples: "What is the interest rate in this document?", "Summarize this contract"
 
-    3. **database**
+    3. **db_assist** (database query)
        - Simple queries about specific loan records, customer data, account balances
        - Questions requiring database lookup WITHOUT visualization
        - Requests for raw data or specific records
        Examples: "Show loan ID 12345", "What is the status of my loan?", "How many active loans?"
 
-    4. **visualization**
+    4. **viz_assist** (visualization)
        - Queries that request charts, graphs, or visual representations of data
        - Analytical questions requiring data aggregation and visualization
        - Trend analysis, comparisons, or distribution questions
@@ -418,15 +418,15 @@ async def classify_query_with_gemini(
             
             # Parse response
             if "visualization" in category or "visualize" in category:
-                return "visualization"
+                return "viz_assist"
             elif "out" in category or "scope" in category:
                 return "out_of_scope"
             elif "document" in category:
-                return "document q&a"
+                return "doc_assist"
             elif "database" in category:
-                return "database"
+                return "db_assist"
             elif "company" in category or "knowledge" in category:
-                return "company knowledge"
+                return "lf_assist"
             
             logger.warning(f"Unrecognized category: {category}")
             return "out_of_scope"
@@ -590,7 +590,7 @@ async def unified_chat(
         )
     
     # Step 3: Handle edge cases
-    if category == "document q&a" and not doc_uploaded:
+    if category == "doc_assist" and not doc_uploaded:
         logger.info("Document Q&A without file - fallback to LF Assist")
         category = "out_of_scope"
 
@@ -602,20 +602,20 @@ async def unified_chat(
     sql_query = None
     chart_analysis = None
 
-    if category == "company knowledge":
+    if category == "lf_assist":
         logger.info("Routing to LF Assist")
         result = await process_lf_chat(message, session_id)
         answer = result.answer
         tags = result.tags
         backend = "lf_assist"
         
-    elif category == "document q&a":
+    elif category == "doc_assist":
         logger.info("Routing to Doc Assist")
         file_content = await file.read()
         answer = await process_pdf_question(message, file_content, file.filename)
         backend = "doc_assist"
         
-    elif category == "database":
+    elif category == "db_assist":
         logger.info("Routing to DB Assist")
         result = await process_db_query(message)
         answer = result["response"]
@@ -625,7 +625,7 @@ async def unified_chat(
              # though usually the error message is in 'answer'
              pass
     
-    elif category == "visualization":
+    elif category == "viz_assist":
         logger.info("Routing to Visualization Assist")
         result = await process_viz_query(message, session_id)
         

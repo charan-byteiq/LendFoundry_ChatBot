@@ -282,6 +282,7 @@ class SQLLangGraphAgentGemini:
     def _query_execution_node(self, state: SQLAgentState) -> Dict[str, Any]:
         """Execute the validated SQL query and LOG to database"""
         try:
+            logger.info(f"Executing SQL Query: {state['cleaned_sql_query']}")
             if not self.query_runner:
                 return {
                     "execution_result": "Query execution skipped - no query runner configured",

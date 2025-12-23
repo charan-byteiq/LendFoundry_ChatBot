@@ -1,6 +1,6 @@
 import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, status, Path
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, status, Path, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
@@ -12,6 +12,9 @@ from typing import Optional, Any, Dict, List, Literal
 from enum import Enum
 from logger import logger
 from services import get_gemini_client
+from redshift_logger import safe_log_to_redshift    
+from fastapi import Request
+from fastapi.exceptions import RequestValidationError
 
 # Import all routers
 from lf_assist.app.api import router as lf_assist_router, process_lf_chat, clear_conversation
@@ -60,6 +63,53 @@ app.include_router(lf_assist_router)
 app.include_router(doc_assist_router)
 app.include_router(db_assist_router)
 app.include_router(viz_assist_router)
+
+
+# =============================================
+# EXCEPTION HANDLERS (Log 422/4xx/5xx errors)
+# =============================================
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Log 422 validation errors"""
+    safe_log_to_redshift(
+        session_id=None,
+        chatbot="router",
+        user_message=None,
+        answer=None,
+        response_payload=None,
+        is_error=True,
+        error_message=str(exc),
+    )
+    return JSONResponse(status_code=422, content={"detail": exc.errors()})
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """Log explicit HTTP exceptions (4xx/5xx)"""
+    safe_log_to_redshift(
+        session_id=None,
+        chatbot="router",
+        user_message=None,
+        answer=None,
+        response_payload=None,
+        is_error=True,
+        error_message=str(exc.detail),
+    )
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    """Log unhandled 500 errors"""
+    safe_log_to_redshift(
+        session_id=None,
+        chatbot="router",
+        user_message=None,
+        answer=None,
+        response_payload=None,
+        is_error=True,
+        error_message=str(exc),
+    )
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 
 # =============================================
@@ -482,6 +532,14 @@ async def generate_deflection_response(query: str) -> str:
             "policies, document reviews, account information, and data visualizations. "
             "What can I help you with regarding our lending services today?"
         )
+    
+
+def dump_model(obj):
+    """Safely dump pydantic model (v1/v2 compatible)"""
+    try:
+        return obj.model_dump()
+    except AttributeError:
+        return obj.dict()
 
 # --- Main Unified Chat Endpoint ---
 
@@ -549,6 +607,7 @@ async def generate_deflection_response(query: str) -> str:
     """
 )
 async def unified_chat(
+    background_tasks: BackgroundTasks,
     message: str = Form(
         ..., 
         description="The user's natural language query",
@@ -582,12 +641,27 @@ async def unified_chat(
     if category == "out_of_scope":
         logger.info("Out of scope - generating deflection response")
         answer = await generate_deflection_response(message)
-        return ChatResponse(
+        
+        response_obj = ChatResponse(
             backend="scope_guard",
             answer=answer,
             session_id=session_id,
             tags=None
         )
+
+        background_tasks.add_task(
+            safe_log_to_redshift,
+            session_id=session_id,
+            chatbot="scope_guard",
+            user_message=message,
+            answer=answer,
+            response_payload=dump_model(response_obj),
+            is_error=False,
+            error_message=None,
+        )
+
+        return response_obj
+
     
     # Step 3: Handle edge cases
     if category == "document q&a" and not doc_uploaded:
@@ -650,8 +724,8 @@ async def unified_chat(
         backend = "lf_assist"
 
     logger.info(f"Response from {backend}: {answer[:100]}...")
-    
-    return ChatResponse(
+
+    response_obj = ChatResponse(
         backend=backend,
         answer=answer,
         session_id=session_id,
@@ -662,6 +736,20 @@ async def unified_chat(
         record_count=len(data) if data else None,
         error=result.error if backend == "viz_assist" and hasattr(result, "error") else None
     )
+
+    background_tasks.add_task(
+        safe_log_to_redshift,
+        session_id=session_id,
+        chatbot=backend,
+        user_message=message,
+        answer=answer,
+        response_payload=dump_model(response_obj),
+        is_error=False,
+        error_message=None,
+    )
+
+    return response_obj
+
 
 # --- Utility Endpoints ---
 

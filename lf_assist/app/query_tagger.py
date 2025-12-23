@@ -1,12 +1,5 @@
-from google import genai
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
-
-# Configure Gemini Client
-client = genai.Client()
-# genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+from services import get_gemini_client
+from logger import logger
 
 
 def tag_query(query: str, tag_prompt_path: str) -> list[str]:
@@ -16,10 +9,8 @@ def tag_query(query: str, tag_prompt_path: str) -> list[str]:
 
         final_prompt = prompt_template.replace("{question}", query.strip())
 
-        response = client.models.generate_content(
-            model="models/gemini-2.5-flash",
-            contents=final_prompt
-        ).text.strip()
+        gemini = get_gemini_client()
+        response = gemini.generate(final_prompt).strip()
 
         # Look for "Tag(s):" line
         tag_line = next((line for line in response.splitlines() if line.startswith("Tag(s):")), "")
@@ -27,5 +18,5 @@ def tag_query(query: str, tag_prompt_path: str) -> list[str]:
             return [tag.strip() for tag in tag_line.replace("Tag(s):", "").split(",") if tag.strip()]
         return []
     except Exception as e:
-        print(f"⚠️ Error tagging query: {e}")
+        logger.error(f"Error tagging query: {e}")
         return []

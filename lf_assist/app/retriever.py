@@ -2,6 +2,7 @@
 from typing import List, Dict, Any, Optional
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 from lf_assist.app.qdrant_store import search_chunks, get_chunks_by_tags
+from logger import logger
 
 
 def get_relevant_chunks(
@@ -40,24 +41,24 @@ def get_relevant_chunks(
         
         history_text = " ".join(history_text_parts)
         search_query = f"{history_text} {query}"
-        print(f"📜 Using conversation context: {history_text[:100]}...")
+        logger.debug(f"Using conversation context: {history_text[:100]}...")
     else:
         search_query = query
 
-    print(f"\n🔍 Running semantic search for query: '{search_query}'")
+    logger.debug(f"Running semantic search for query: '{search_query}'")
 
     # 2️⃣ Always do semantic search based on the query
     query_results = search_chunks(search_query, top_k=top_k)
-    print(f"   📄 Semantic search returned {len(query_results)} results")
+    logger.debug(f"Semantic search returned {len(query_results)} results")
 
     # 3️⃣ Tag-based search (if tags provided)
     tag_results = []
     if tags:
-        print(f"🏷️ Running tag search for tags: {tags}")
+        logger.debug(f"Running tag search for tags: {tags}")
         tag_results = get_chunks_by_tags(tags)
-        print(f"   📄 Tag search returned {len(tag_results)} results")
+        logger.debug(f"Tag search returned {len(tag_results)} results")
     else:
-        print("🏷️ No tags provided for tag search")
+        logger.debug("No tags provided for tag search")
 
     # 4️⃣ Merge and deduplicate results
     seen = set()
@@ -71,10 +72,10 @@ def get_relevant_chunks(
 
     # 5️⃣ Fallback: if no merged results, return query-only results
     if not merged_results:
-        print("⚠️ No merged results, falling back to query-only results")
+        logger.warning("No merged results, falling back to query-only results")
         merged_results = [r["content"] for r in query_results]
 
-    print(f"✅ Final merged results: {len(merged_results)} chunks\n")
+    logger.debug(f"Final merged results: {len(merged_results)} chunks")
     return merged_results
 
 

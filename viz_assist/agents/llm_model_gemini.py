@@ -1,8 +1,8 @@
 import os
 import logging
 from dotenv import load_dotenv
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import SystemMessage, HumanMessage
+from services import get_sql_generator_llm
 
 # Load environment variables
 load_dotenv()
@@ -13,23 +13,8 @@ logger = logging.getLogger(__name__)
 
 class SQLQueryGenerator:
     def __init__(self):
-        self.api_key = os.getenv("GOOGLE_API_KEY")
-        if not self.api_key:
-            raise ValueError("GOOGLE_API_KEY not found in environment variables.")
-        
-        # Initialize LangChain model with configuration
-        self.model = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash",
-            google_api_key=self.api_key,
-            temperature=0,  # Deterministic output for SQL
-            max_output_tokens=2048,
-            safety_settings={
-                "HARM_CATEGORY_HARASSMENT": "BLOCK_NONE",
-                "HARM_CATEGORY_HATE_SPEECH": "BLOCK_NONE",
-                "HARM_CATEGORY_SEXUALLY_EXPLICIT": "BLOCK_NONE",
-                "HARM_CATEGORY_DANGEROUS_CONTENT": "BLOCK_NONE",
-            }
-        )
+        # Use centralized LangChain LLM service
+        self.model = get_sql_generator_llm()
         
         # Base system prompt for SQL generation
         self.base_system_prompt = """You are an expert SQL query generator for Amazon Redshift, specialized in producing queries  for data visualization tools (charts, dashboards, and reports).

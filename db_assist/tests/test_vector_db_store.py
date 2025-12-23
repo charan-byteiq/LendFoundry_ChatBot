@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import patch, MagicMock
-from src.db import vector_db_store
+from db_assist.db import vector_db_store
 from langchain_core.documents import Document
 
 @pytest.fixture

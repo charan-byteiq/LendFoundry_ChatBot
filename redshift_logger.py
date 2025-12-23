@@ -21,7 +21,7 @@ def truncate_utf8_bytes(s: str | None, max_bytes: int = MAX_VARCHAR_BYTES) -> st
 def get_conn():
     return redshift_connector.connect(
         host=os.getenv("REDSHIFT_HOST"),
-        database=os.getenv("REDSHIFT_DB"),
+        database=os.getenv("REDSHIFT_DBNAME"),
         port=int(os.getenv("REDSHIFT_PORT", "5439")),
         user=os.getenv("REDSHIFT_USER"),
         password=os.getenv("REDSHIFT_PASSWORD"),
@@ -44,7 +44,7 @@ def safe_log_to_redshift(*, session_id: str | None, chatbot: str, user_message: 
         error_message = truncate_utf8_bytes(error_message)
 
         sql = """
-          INSERT INTO analytics.chat_logs
+          INSERT INTO cdp.chat_logs
           (event_id, created_at, session_id, chatbot, user_message, answer, response_json, is_error, error_message)
           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """

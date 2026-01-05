@@ -24,7 +24,7 @@ An intelligent, unified chat interface powered by multiple specialized AI assist
 │                        Frontend Layer                           │
 │  ┌──────────────────┐  ┌──────────────────────────────────────┐ │
 │  │  Streamlit UI    │  │  React + Vite + Tailwind + shadcn/ui │ │
-│  │  (Port 8501)     │  │  (Port 5173 dev / 3000 prod)         │ │
+│  │  (Port 8501)     │  │  (Port 5174 dev / 3000 prod)         │ │
 │  └────────┬─────────┘  └───────────────┬──────────────────────┘ │
 └───────────┼────────────────────────────┼────────────────────────┘
             │                            │
@@ -55,12 +55,12 @@ An intelligent, unified chat interface powered by multiple specialized AI assist
 
 | Service | Directory | Port | Description |
 |---------|-----------|------|-------------|
-| **Unified API** | `unified_api.py` | 8000 | Central router with Gemini classification |
+| **Unified API** | `unified_api.py` | 8001 | Central router with Gemini classification |
 | **LF Assist** | `lf_assist/` | - | Company knowledge RAG |
 | **Doc Assist** | `new/` | - | PDF document Q&A |
 | **DB Assist** | `src/` | - | Natural language SQL |
 | **Viz Assist** | `viz_assist/` | - | Data visualization |
-| **React Frontend** | `frontend/` | 5173 | Modern chat UI |
+| **React Frontend** | `frontend/` | 5174 | Modern chat UI |
 | **Streamlit UI** | `ui.py` | 8501 | Legacy chat UI |
 
 ---
@@ -106,7 +106,7 @@ npm install  # or: bun install
 
 **Terminal 1: Backend API**
 ```bash
-python -m uvicorn unified_api:app --host 0.0.0.0 --port 8000 --reload
+python -m uvicorn unified_api:app --host 0.0.0.0 --port 8001 --reload
 OR
 python -m unified_api
 ```

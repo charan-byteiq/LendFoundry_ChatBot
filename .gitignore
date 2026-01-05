@@ -1,6 +1,7 @@
 .vite
 .env
 /venv
+/menv
 .venv/
 # src/db/query_runnerV2.py
 /apicheck.py

@@ -37,7 +37,7 @@ npm run dev
 bun dev
 ```
 
-Open http://localhost:5173
+Open http://localhost:5174
 
 ### Production Build
 

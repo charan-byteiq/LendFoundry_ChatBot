@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { ApiResponse } from '@/types/chat';
 
-const API_BASE_URL = 'http://localhost:8000';
+const API_BASE_URL = 'http://localhost:8001';
 
 export async function sendChatMessage(
   message: string,

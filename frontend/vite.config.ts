@@ -7,6 +7,9 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 5174,
+    allowedHosts: [
+      "unified-lfchatbot.sigmainfo.net",
+    ],
   },
   plugins: [react()],
   resolve: {

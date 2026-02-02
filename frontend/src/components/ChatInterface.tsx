@@ -57,7 +57,7 @@ export function ChatInterface() {
       
       toast({
         title: "Connection Error",
-        description: "Could not connect to the server. Please ensure the backend is running on localhost:8000",
+        description: "Could not connect to the server. Please ensure the backend is running on localhost:8001",
         variant: "destructive",
       });
 
@@ -70,7 +70,7 @@ export function ChatInterface() {
           backend: 'scope_guard',
           answer: 'Failed to connect to the server.',
           session_id: sessionId || '',
-          error: 'Could not connect to the server. Please ensure the backend is running on localhost:8000',
+          error: 'Could not connect to the server. Please ensure the backend is running on localhost:8001',
         },
       };
 

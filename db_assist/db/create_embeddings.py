@@ -18,7 +18,7 @@ def create_and_store_embeddings():
     """
     print("Initializing embedding model...")
     # Ensure you have GOOGLE_API_KEY in your .env file
-    embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+    embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001")
     
     print("Starting the process of storing documents in the vector database.")
     # The `documents` are imported from the semantic descriptions file

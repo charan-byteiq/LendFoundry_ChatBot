@@ -8,4 +8,4 @@
 /charan-ec2.pem
 .venv
 __pycache__/
-
+redshift_loggerV2.py

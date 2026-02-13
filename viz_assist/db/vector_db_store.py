@@ -55,7 +55,7 @@ def get_vector_store(embeddings=None):
     try:
         if collection_exists(conn, COLLECTION_NAME):
             if embeddings is None:
-                embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+                embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001")
             return PGVector(
                 collection_name=COLLECTION_NAME,
                 connection=PGVECTOR_CONNECTION_STRING,

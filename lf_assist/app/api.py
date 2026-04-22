@@ -7,7 +7,7 @@ from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 from lf_assist.app.query_tagger import tag_query
 from lf_assist.app.retriever import get_relevant_chunks
 from lf_assist.app.summarizer import summarize
-from logger import logger
+from app_logger import logger
 
 # Global conversation storage (session_id -> list of messages)
 conversation_store: Dict[str, List[BaseMessage]] = {}

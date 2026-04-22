@@ -21,7 +21,7 @@ Usage:
 import os
 from typing import Optional, Any, Dict, List, Union
 from dotenv import load_dotenv
-from logger import logger
+from app_logger import logger
 
 load_dotenv()
 
@@ -44,10 +44,10 @@ SAFETY_SETTINGS_DISABLED = {
 
 def _get_api_key() -> str:
     """Get Gemini API key from environment variables."""
-    api_key = os.getenv("GEMINI_API_KEY")
+    api_key = os.getenv("GOOGLE_API_KEY")
     if not api_key:
         raise ValueError(
-            "Gemini API key not found. Set GEMINI_API_KEY environment variable."
+            "Gemini API key not found. Set GOOGLE_API_KEY environment variable."
         )
     return api_key
 

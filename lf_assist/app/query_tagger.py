@@ -1,5 +1,5 @@
 from services import get_gemini_client
-from logger import logger
+from app_logger import logger
 
 
 def tag_query(query: str, tag_prompt_path: str) -> list[str]:

@@ -4,7 +4,7 @@ import json
 from uuid import uuid4
 from datetime import datetime, timezone
 import redshift_connector
-from logger import logger
+from app_logger import logger
 
 MAX_VARCHAR_BYTES = 65000
 

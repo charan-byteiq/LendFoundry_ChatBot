@@ -3,6 +3,7 @@ import logging
 from dotenv import load_dotenv
 from langchain_core.messages import SystemMessage, HumanMessage
 from services import get_sql_generator_llm
+from app_logger import logger
 
 load_dotenv()
 
@@ -59,9 +60,12 @@ class SQLQueryGenerator:
                 HumanMessage(content=user_context),
             ]
 
+            logger.info(f"Invoking SQL LLM (model: {getattr(self.model, 'model', 'unknown')})...")
             ai_msg = self.model.invoke(messages)
-            return self._cleanup_sql(ai_msg.content)
+            result = self._cleanup_sql(ai_msg.content)
+            logger.info(f"SQL LLM returned: {repr(result[:200]) if result else 'Empty/None'}")
+            return result
 
         except Exception as e:
-            logging.error(f"Error generating SQL: {e}")
+            logger.error(f"Error generating SQL: {e}", exc_info=True)
             return None

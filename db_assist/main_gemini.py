@@ -4,7 +4,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
-from logger import logger
+from app_logger import logger
 
 # Adjust imports to be relative to the 'src' directory
 from db_assist.agents.gemini.sql_langgraph_agent_gemini import SQLLangGraphAgentGemini

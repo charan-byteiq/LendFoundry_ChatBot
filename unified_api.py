@@ -1,16 +1,18 @@
 import os
+
+from dotenv import load_dotenv
+load_dotenv(override=True)
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, status, Path, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from dotenv import load_dotenv
 from uuid import uuid4
 import asyncio
 import random
 from typing import Optional, Any, Dict, List, Literal
 from enum import Enum
-from logger import logger
+from app_logger import logger
 from services import get_gemini_client
 from redshift_logger import safe_log_to_redshift    
 from fastapi import Request
@@ -21,9 +23,6 @@ from lf_assist.app.api import router as lf_assist_router, process_lf_chat, clear
 from doc_assist.api import router as doc_assist_router, process_pdf_question 
 from db_assist.api import router as db_assist_router, process_db_query
 from viz_assist.api import router as viz_assist_router, process_viz_query, VizChatbotService
-
-load_dotenv()
-# genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
 # --- Lifespan Event Handler ---
 
@@ -461,7 +460,7 @@ async def classify_query_with_gemini(
     
     for attempt in range(max_retries + 1):
         try:
-            logger.debug(f"Classification attempt {attempt + 1}/{max_retries + 1}")
+            logger.info(f"Classification attempt {attempt + 1}/{max_retries + 1}")
             
             category = await gemini.generate_async(prompt)
             category = category.strip().lower()

@@ -2,7 +2,7 @@
 from typing import List, Dict, Any, Optional
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 from lf_assist.app.qdrant_store import search_chunks, get_chunks_by_tags
-from logger import logger
+from app_logger import logger
 
 
 def get_relevant_chunks(

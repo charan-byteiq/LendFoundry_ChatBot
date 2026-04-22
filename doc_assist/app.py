@@ -8,7 +8,7 @@ from services import get_gemini_client
 load_dotenv()
 api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
 if not api_key:
-    st.error("GOOGLE_API_KEY or GEMINI_API_KEY environment variable is not set.")
+    st.error("GOOGLE_API_KEY environment variable is not set.")
     st.stop()
 
 # --- Helper Functions ---

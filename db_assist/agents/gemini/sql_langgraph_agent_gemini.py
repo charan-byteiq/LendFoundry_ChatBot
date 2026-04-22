@@ -6,7 +6,7 @@ from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 from .llm_model_gemini import SQLQueryGenerator
 from langchain_core.prompts import ChatPromptTemplate
 import os
-from logger import logger
+from app_logger import logger
 from services import get_langchain_llm
 
 
@@ -153,6 +153,7 @@ class SQLLangGraphAgentGemini:
         """Search for relevant schema information"""
         try:
             full_query = state["user_question"]
+            logger.info(f"Schema search for: '{full_query}'")
 
             schema_results = self.vector_store.similarity_search_with_score(full_query, k=5)
             
@@ -163,7 +164,7 @@ class SQLLangGraphAgentGemini:
                     "score": float(score),
                     "metadata": getattr(doc, "metadata", {}) or {}
                 })
-            logger.debug(f"Retrieved {len(retrieved)} schema chunks")
+            logger.info(f"Schema search retrieved {len(retrieved)} chunks (scores: {[f'{r['score']:.4f}' for r in retrieved]})") 
             
             return {
                 "retrieved_schema_chunks": retrieved,
@@ -172,6 +173,7 @@ class SQLLangGraphAgentGemini:
             }
             
         except Exception as e:
+            logger.error(f"Schema search FAILED: {e}", exc_info=True)
             return {
                 "error_message": f"Schema search failed: {str(e)}",
                 "current_step": "schema_search_failed"
@@ -197,6 +199,8 @@ class SQLLangGraphAgentGemini:
             retrieved_context = "\n".join(
                 c["content"] for c in state.get("retrieved_schema_chunks", []) if c.get("content")
             ).strip()
+            
+            logger.info(f"SQL Generation - Schema chunks: {len(state.get('retrieved_schema_chunks', []))}, Context length: {len(retrieved_context)} chars")
 
             db_structure_text = str(self.db_structure or "")
 
@@ -216,6 +220,8 @@ The database is organized into schemas and tables as follows:
                 database_type="Redshift",
             )
             
+            logger.info(f"SQL Generation result: {repr(raw_query[:200]) if raw_query else 'None/Empty'}")
+            
             return {
                 "raw_sql_query": raw_query or "",
                 "current_step": "sql_generation_complete",
@@ -223,6 +229,7 @@ The database is organized into schemas and tables as follows:
             }
             
         except Exception as e:
+            logger.error(f"SQL generation FAILED: {e}", exc_info=True)
             return {
                 "error_message": f"SQL generation failed: {str(e)}",
                 "current_step": "sql_generation_failed",

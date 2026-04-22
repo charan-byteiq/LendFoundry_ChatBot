@@ -4,6 +4,7 @@ import { Message, BackendType } from '@/types/chat';
 import { CodeBlock } from './CodeBlock';
 import { DataChart } from './DataChart';
 import { DataTable } from './DataTable';
+import { FormattedText } from './FormattedText';
 import { cn } from '@/lib/utils';
 
 interface BotMessageProps {
@@ -53,9 +54,7 @@ export function BotMessage({ message }: BotMessageProps) {
 
   if (!message.response) {
     return (
-      <div className="text-foreground">
-        {message.content}
-      </div>
+      <FormattedText content={message.content} />
     );
   }
 
@@ -88,9 +87,7 @@ export function BotMessage({ message }: BotMessageProps) {
 
       {/* Answer Text */}
       {answer && (
-        <div className="text-foreground whitespace-pre-wrap">
-          {answer}
-        </div>
+        <FormattedText content={answer} />
       )}
 
       {/* Tags for lf_assist */}

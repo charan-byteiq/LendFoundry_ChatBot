@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, status, Path, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from uuid import uuid4
 import asyncio
 import random
@@ -146,8 +146,8 @@ class ChartConfig(BaseModel):
     y_axis: Optional[str] = Field(None, description="Data key to use for Y-axis")
     reason: Optional[str] = Field(None, description="Why this chart type was chosen")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra= {
             "example": {
                 "type": "bar",
                 "title": "Loan Distribution by State",
@@ -156,6 +156,7 @@ class ChartConfig(BaseModel):
                 "reason": "Bar chart best shows categorical comparisons"
             }
         }
+    )
 
 
 class ChartAnalysis(BaseModel):
@@ -165,8 +166,8 @@ class ChartAnalysis(BaseModel):
     auto_chart: Optional[ChartConfig] = Field(None, description="Auto-recommended chart configuration")
     suggested_charts: Optional[List[Dict[str, Any]]] = Field(None, description="Alternative chart suggestions")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra= {
             "example": {
                 "chartable": True,
                 "reasoning": "Data has categorical X values and numeric Y values",
@@ -179,6 +180,7 @@ class ChartAnalysis(BaseModel):
                 "suggested_charts": [{"type": "pie", "title": "Distribution"}]
             }
         }
+    )
 
 
 # =============================================
@@ -229,8 +231,8 @@ class ChatResponse(BaseModel):
         description="Error message if something went wrong. Display prominently if present"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra= {
             "examples": [
                 {
                     "summary": "LF Assist Response",
@@ -280,6 +282,7 @@ class ChatResponse(BaseModel):
                 }
             ]
         }
+    )
 
 
 # =============================================
@@ -297,8 +300,8 @@ class ValidationErrorResponse(BaseModel):
     """Response returned when request validation fails (422)"""
     detail: List[ValidationErrorDetail] = Field(..., description="List of validation errors")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra= {
             "example": {
                 "detail": [
                     {
@@ -309,18 +312,20 @@ class ValidationErrorResponse(BaseModel):
                 ]
             }
         }
+    )
 
 
 class HTTPErrorResponse(BaseModel):
     """Response returned for HTTP errors (4xx, 5xx)"""
     detail: str = Field(..., description="Error description")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra= {
             "example": {
                 "detail": "File size exceeds the 5MB limit."
             }
         }
+    )
 
 
 # =============================================
@@ -332,13 +337,14 @@ class ClearSessionResponse(BaseModel):
     message: str = Field(..., description="Status message")
     success: bool = Field(..., description="Whether the operation succeeded")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra= {
             "example": {
                 "message": "Session abc123 cleared",
                 "success": True
             }
         }
+    )
 
 
 class ServiceStatus(BaseModel):
@@ -355,8 +361,8 @@ class HealthCheckResponse(BaseModel):
     status: ServiceStatus = Field(..., description="Status of each backend service")
     message: str = Field(..., description="Overall health message")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra= {
             "example": {
                 "status": {
                     "lf_assist": "healthy",
@@ -368,6 +374,7 @@ class HealthCheckResponse(BaseModel):
                 "message": "All backends integrated internally"
             }
         }
+    )
 
 
 class RootResponse(BaseModel):
@@ -378,8 +385,8 @@ class RootResponse(BaseModel):
     features: List[str] = Field(..., description="Enabled features")
     endpoints: Dict[str, str] = Field(..., description="Available endpoints mapping")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra= {
             "example": {
                 "service": "Unified Chatbot Router",
                 "version": "3.1",
@@ -391,6 +398,7 @@ class RootResponse(BaseModel):
                 }
             }
         }
+    )
 
 # Classification Logic 
 

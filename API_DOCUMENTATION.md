@@ -8,9 +8,10 @@
 
 ## Quick Start
 
-1. **Swagger UI**: `http://localhost:8000/docs`
-2. **ReDoc**: `http://localhost:8000/redoc`
-3. **OpenAPI JSON**: `http://localhost:8000/openapi.json`
+1. **Frontend App**: `http://localhost:8001/` (When running via Docker)
+2. **Swagger UI**: `http://localhost:8001/docs`
+3. **ReDoc**: `http://localhost:8001/redoc`
+4. **OpenAPI JSON**: `http://localhost:8001/openapi.json`
 
 ---
 
@@ -225,6 +226,8 @@ Returns API metadata (version, backends, endpoints).
 ---
 
 ## Frontend Implementation Guide
+
+> **Note on Deployment:** When using the official `docker-compose.yml`, the React frontend is compiled during the build phase and statically served by the FastAPI backend on port `8001`. The frontend does not require a separate Node server in production.
 
 ### 1. Session Management
 

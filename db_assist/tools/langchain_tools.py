@@ -90,10 +90,12 @@ class QueryValidationTool(BaseTool):
             # Check safety
             safety_result = _safe_sql(filtered_query)
             
+            is_safe = not safety_result.startswith("Error:")
+            
             return json.dumps({
-                "cleaned_query": filtered_query,
+                "cleaned_query": safety_result if is_safe else filtered_query,
                 "safety_check": safety_result,
-                "is_safe": "unsafe" not in safety_result.lower()
+                "is_safe": is_safe
             }, indent=2)
         except Exception as e:
             return f"Error validating query: {str(e)}"

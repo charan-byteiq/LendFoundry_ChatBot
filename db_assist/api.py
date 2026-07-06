@@ -102,7 +102,7 @@ async def process_db_query(prompt: str, thread_id: str = None) -> dict:
     return {
         "response": response_data,
         "thread_id": thread_id,
-        "success": result.get('success', False)
+        "success": result.get('success', False) if result else False
     }
 
 # Router endpoints

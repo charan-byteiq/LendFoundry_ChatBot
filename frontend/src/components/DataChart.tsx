@@ -13,8 +13,10 @@ import {
   ChartData,
   ChartOptions,
 } from 'chart.js';
-import { Bar, Line, Pie, Doughnut } from 'react-chartjs-2';
+import { Bar, Line, Pie, Doughnut, Scatter } from 'react-chartjs-2';
 import { ChartAnalysis } from '@/types/chat';
+
+import { Filler } from 'chart.js';
 
 ChartJS.register(
   CategoryScale,
@@ -25,7 +27,8 @@ ChartJS.register(
   ArcElement,
   Title,
   Tooltip,
-  Legend
+  Legend,
+  Filler
 );
 
 interface DataChartProps {
@@ -171,12 +174,16 @@ export function DataChart({ data, chartAnalysis }: DataChartProps) {
 
   if (!chartData || !chartAnalysis.auto_chart) return null;
 
-  const ChartComponent = {
+  const chartMap: Record<string, typeof Bar | typeof Line | typeof Pie | typeof Doughnut | typeof Scatter> = {
     bar: Bar,
     line: Line,
     pie: Pie,
     doughnut: Doughnut,
-  }[chartAnalysis.auto_chart.type];
+    scatter: Scatter,
+    area: Line,        // Area is a Line chart with fill enabled
+    histogram: Bar,    // Histogram renders as a Bar chart
+  };
+  const ChartComponent = chartMap[chartAnalysis.auto_chart.type] || Bar;
 
   return (
     <div className="w-full h-[350px] p-4">

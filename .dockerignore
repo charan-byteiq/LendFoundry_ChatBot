@@ -1,0 +1,50 @@
+# Version control
+.git
+.gitignore
+
+# Python
+venv/
+menv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Frontend build artifacts & dev files (source is copied explicitly)
+frontend/node_modules/
+frontend/.vite/
+frontend/dist/
+
+# IDE & OS
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+Thumbs.db
+.DS_Store
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Secrets (mounted at runtime, never baked in)
+.env
+*.pem
+
+# Docs & misc
+*.md
+LICENSE
+API_DOCUMENTATION.md
+frontend/README.md
+
+# Test & debug files
+apicheck.py
+redshift_loggerV2.py
+db_assist/db/debug_search.py
+db_assist/db/test.py
+viz_assist/db/test.py

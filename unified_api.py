@@ -17,6 +17,7 @@ from services import get_gemini_client
 from redshift_logger import safe_log_to_redshift    
 from fastapi import Request
 from fastapi.exceptions import RequestValidationError
+import traceback
 
 # Import all routers
 from lf_assist.app.api import router as lf_assist_router, process_lf_chat, clear_conversation
@@ -63,6 +64,29 @@ app.include_router(doc_assist_router)
 app.include_router(db_assist_router)
 app.include_router(viz_assist_router)
 
+# --- Serve Frontend (production / Docker only) ---
+import os
+import pathlib
+from fastapi.staticfiles import StaticFiles
+from starlette.responses import FileResponse
+
+FRONTEND_DIR = pathlib.Path(__file__).parent / "frontend" / "dist"
+
+if FRONTEND_DIR.is_dir():
+    # Serve static assets (JS, CSS, images)
+    app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIR / "assets")), name="static-assets")
+    
+    # Serve other static files in the root (favicon, manifest, etc.)
+    @app.get("/lendfoundry.png")
+    @app.get("/favicon.ico")
+    async def serve_static_root(request: Request):
+        file_path = FRONTEND_DIR / request.url.path.lstrip("/")
+        if file_path.is_file():
+            return FileResponse(str(file_path))
+        return JSONResponse(status_code=404, content={"detail": "Not found"})
+
+    logger.info(f"Serving frontend from {FRONTEND_DIR}")
+
 
 # =============================================
 # EXCEPTION HANDLERS (Log 422/4xx/5xx errors)
@@ -98,7 +122,9 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
-    """Log unhandled 500 errors"""
+    """Log unhandled 500 errors with traceback"""
+    error_trace = traceback.format_exc()
+    logger.error(f"Unhandled Exception: {error_trace}")
     safe_log_to_redshift(
         session_id=None,
         chatbot="router",
@@ -106,7 +132,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
         answer=None,
         response_payload=None,
         is_error=True,
-        error_message=str(exc),
+        error_message=error_trace,
     )
     return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
@@ -862,6 +888,16 @@ def root() -> RootResponse:
             "viz_assist": "/viz-assist/chat"
         }
     )
+
+# --- SPA Catch-all: Serve index.html for client-side routing (Docker/production only) ---
+if FRONTEND_DIR.is_dir():
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        """Serve the React SPA for any unmatched routes"""
+        file_path = FRONTEND_DIR / full_path
+        if file_path.is_file():
+            return FileResponse(str(file_path))
+        return FileResponse(str(FRONTEND_DIR / "index.html"))
 
 if __name__ == "__main__":
     import uvicorn

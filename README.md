@@ -21,23 +21,14 @@ An intelligent, unified chat interface powered by multiple specialized AI assist
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        Frontend Layer                           │
+│              Unified Docker Container (Port 8001)               │
 │  ┌──────────────────┐  ┌──────────────────────────────────────┐ │
-│  │  Streamlit UI    │  │  React + Vite + Tailwind + shadcn/ui │ │
-│  │  (Port 8501)     │  │  (Port 5174 dev / 3000 prod)         │ │
+│  │  React SPA       │  │  Unified API Router (FastAPI)        │ │
+│  │  (Static assets) │  │  (Routes to multiple backends)       │ │
 │  └────────┬─────────┘  └───────────────┬──────────────────────┘ │
 └───────────┼────────────────────────────┼────────────────────────┘
             │                            │
             ▼                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    Unified API Router (Port 8000)               │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │  POST /chat → Gemini Classification → Route to Backend     │ │
-│  │  Swagger: /docs  |  ReDoc: /redoc  |  OpenAPI: /openapi.json│ │
-│  └────────────────────────────────────────────────────────────┘ │
-└──────────┬──────────┬───────────┬───────────┬───────────────────┘
-           │          │           │           │
-           ▼          ▼           ▼           ▼
 ┌──────────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────┐
 │  LF Assist   │ │Doc Assist│ │DB Assist │ │ Viz Assist   │
 │  /lf-assist  │ │/doc-assist│ │/db-assist│ │ /viz-assist  │
@@ -69,8 +60,7 @@ An intelligent, unified chat interface powered by multiple specialized AI assist
 
 ### Prerequisites
 
-- **Python 3.11+**
-- **Node.js 18+** and **npm/bun** (for React frontend)
+- **Docker Desktop** (Must be running for containerized deployment)
 - **Google API Key** with Gemini access 
 - **PostgreSQL** for database storage [Download](https://www.postgresql.org/download/)
 - **PGVector** for embedding storage [Download](https://github.com/pgvector/pgvector)
@@ -83,38 +73,40 @@ cd LendFoundry_ChatBot
 
 # Create environment file
 cp .env.example .env
-# Edit .env with your API keys
+# Edit .env with your API keys (Use host.docker.internal for local DBs)
 ```
 
-### 2. Install Dependencies
+### 2. Run with Docker Compose
+
+The simplest way to run the application is using the provided Docker configuration. This builds both the React frontend and the Python backend into a single unified container:
 
 ```bash
-# Backend (root)
-python -m venv venv
-venv/Scripts/Activate.ps1
-pip install -r requirements.txt
-
-# Setup POSTGRES
-python viz_assist/db/create_embeddings.py
-
-# Frontend
-cd frontend
-npm install  # or: bun install
+docker compose up --build
 ```
 
-### 3. Start Services
+Access the application at:
+- **Frontend UI**: `http://localhost:8001`
+- **Swagger API Docs**: `http://localhost:8001/docs`
+
+---
+
+### Local Development (Without Docker)
+
+If you wish to run the services separately for active development:
 
 **Terminal 1: Backend API**
 ```bash
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
 python -m uvicorn unified_api:app --host 0.0.0.0 --port 8001 --reload
-OR
-python -m unified_api
 ```
 
 **Terminal 2: React Frontend**
 ```bash
 cd frontend
-npm run dev  # or: bun dev
+npm install
+npm run dev
 ```
 
 
@@ -127,7 +119,9 @@ npm run dev  # or: bun dev
 GOOGLE_API_KEY="your_gemini_api_key_here"
 
 # PostgreSQL (for DB/Viz Assist)
-POSTGRES_HOST=localhost
+# NOTE: If using Docker and running Postgres locally on Windows, 
+# use 'host.docker.internal' instead of 'localhost'
+POSTGRES_HOST=host.docker.internal
 POSTGRES_PORT=5432
 POSTGRES_USER=chatbot_user
 POSTGRES_PASSWORD=chatbot_pass

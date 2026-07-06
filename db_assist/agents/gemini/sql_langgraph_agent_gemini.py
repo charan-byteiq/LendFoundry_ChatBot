@@ -251,14 +251,22 @@ The database is organized into schemas and tables as follows:
             
             safety_result = _safe_sql(cleaned_query)
             
+            is_safe = not safety_result.startswith("Error:")
+            
             validation_result = {
-                "is_safe": "unsafe" not in safety_result.lower(),
+                "is_safe": is_safe,
                 "safety_message": safety_result,
                 "has_syntax_errors": False
             }
             
+            if not is_safe:
+                return {
+                    "error_message": safety_result,
+                    "current_step": "query_validation_failed"
+                }
+            
             return {
-                "cleaned_sql_query": cleaned_query,
+                "cleaned_sql_query": safety_result, # Use the safe result that has LIMIT appended
                 "validation_result": validation_result,
                 "current_step": "query_validation_complete",
                 "error_message": ""

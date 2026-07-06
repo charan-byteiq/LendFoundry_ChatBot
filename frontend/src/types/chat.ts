@@ -4,7 +4,7 @@ export interface ChartAnalysis {
   chartable: boolean;
   reasoning?: string;
   auto_chart?: {
-    type: 'bar' | 'line' | 'pie' | 'scatter' | 'doughnut';
+    type: 'bar' | 'line' | 'pie' | 'scatter' | 'doughnut' | 'area' | 'histogram';
     title: string;
     x_axis?: string;
     y_axis?: string;

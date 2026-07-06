@@ -1,4 +1,5 @@
 # app/api.py
+import os
 import re
 from typing import Dict, List, Optional
 from fastapi import APIRouter, Path, Query
@@ -12,7 +13,7 @@ from app_logger import logger
 # Global conversation storage (session_id -> list of messages)
 conversation_store: Dict[str, List[BaseMessage]] = {}
 
-TAG_PROMPT_PATH = r"lf_assist\prompts\query_tagger.txt"
+TAG_PROMPT_PATH = os.path.join("lf_assist", "prompts", "query_tagger.txt")
 
 # Create router instead of app
 router = APIRouter(prefix="/lf-assist", tags=["LF Assist"])
